@@ -699,8 +699,10 @@
         window.setTimeout(showGameOver, 1000);
       }
     } else if (msg.type === "matched") {
+      hideAllOverlays();
       startRound();
     } else if (msg.type === "rematch") {
+      hideAllOverlays();
       startRound();
     }
   }
