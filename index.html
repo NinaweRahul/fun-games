@@ -1,49 +1,22 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Party Games</title>
-<meta name="description" content="Three peer-to-peer multiplayer games — pick one and share the link.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@500;700&display=swap">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tiny Party Club</title>
+<meta name="description" content="Three tiny two-player browser games. Share a room code and play together.">
 <style>
-  :root { color-scheme: dark; --bg:#0c0e14; --panel:#151824; --edge:#262c40; --ink:#eef1fb; --dim:#9aa3c0; --accent:#8b8cf9; }
-  * { box-sizing: border-box; }
-  body { margin:0; min-height:100vh; background: radial-gradient(1200px 600px at 50% -10%, #1c2140 0%, #0c0e14 55%); color:var(--ink);
-    font-family:"Manrope",sans-serif; display:flex; justify-content:center; padding: 40px 16px; }
-  main { width:100%; max-width:640px; }
-  h1 { font-family:"Space Grotesk",sans-serif; font-size:32px; margin: 0 0 6px; }
-  p.lede { color:var(--dim); margin: 0 0 28px; }
-  .card { display:block; background:var(--panel); border:1px solid var(--edge); border-radius:16px; padding:20px; margin-bottom:14px; text-decoration:none; color:var(--ink); transition: border-color .15s ease, transform .08s ease; }
-  .card:hover { border-color: var(--accent); }
-  .card:active { transform: translateY(1px); }
-  .card h2 { font-family:"Space Grotesk",sans-serif; font-size:19px; margin:0 0 4px; }
-  .card p { margin:0; color:var(--dim); font-size:14px; line-height:1.5; }
-  .tag { display:inline-block; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+:root{--ink:#302a3b;--muted:#746c80;--paper:#fffaf6;--line:#eadfe8;--pink:#ff91b7;--lav:#a897ff;--mint:#7ed7bd;--yellow:#ffd66b;--shadow:0 18px 45px rgba(90,62,96,.12)}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#fff7fb,#f9f7ff 52%,#f5fff9);font-family:Inter,ui-rounded,"SF Pro Rounded",system-ui,sans-serif;color:var(--ink)}
+body:before,body:after{content:"";position:fixed;border-radius:50%;filter:blur(1px);opacity:.45;z-index:-1}body:before{width:280px;height:280px;background:#ffdce9;top:-90px;left:-70px}body:after{width:320px;height:320px;background:#dff8ed;right:-100px;bottom:-100px}
+main{width:min(980px,calc(100% - 28px));margin:0 auto;padding:58px 0 70px}.hero{text-align:center;margin-bottom:34px}.badge{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border:1px solid var(--line);background:#fff;border-radius:999px;font-size:12px;font-weight:800;color:var(--muted);box-shadow:var(--shadow)}h1{font-size:clamp(38px,7vw,66px);line-height:.98;margin:18px 0 12px;letter-spacing:-.045em}.hero p{max-width:590px;margin:0 auto;color:var(--muted);font-size:17px;line-height:1.6}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{position:relative;display:flex;flex-direction:column;min-height:330px;padding:24px;border:1px solid var(--line);border-radius:28px;background:rgba(255,255,255,.9);box-shadow:var(--shadow);text-decoration:none;color:inherit;overflow:hidden;transition:.18s transform,.18s box-shadow}.card:hover{transform:translateY(-5px);box-shadow:0 24px 55px rgba(90,62,96,.16)}.card:nth-child(1){--accent:var(--pink)}.card:nth-child(2){--accent:var(--mint)}.card:nth-child(3){--accent:var(--lav)}.art{height:142px;border-radius:22px;background:color-mix(in srgb,var(--accent) 19%,white);display:grid;place-items:center;font-size:62px;letter-spacing:-12px;margin-bottom:21px;position:relative}.art:after{content:"";position:absolute;inset:12px;border:2px dashed color-mix(in srgb,var(--accent) 40%,white);border-radius:16px}.kicker{text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:900;color:var(--accent)}h2{font-size:24px;margin:6px 0 8px;letter-spacing:-.025em}.card p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}.meta{margin-top:auto;padding-top:18px;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800}.play{display:inline-flex;align-items:center;gap:7px;color:var(--accent)}.play span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:color-mix(in srgb,var(--accent) 17%,white)}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}@media(max-width:760px){main{padding-top:36px}.grid{grid-template-columns:1fr}.card{min-height:260px}.art{height:112px}}
 </style>
-</head>
-<body>
-<main>
-  <h1>Party Games</h1>
-  <p class="lede">Three small multiplayer games, each played by two people on separate devices connected directly to each other. Open one, share the room code with a friend, and play.</p>
-
-  <a class="card" href="./drop-four/">
-    <span class="tag">Turn-based</span>
-    <h2>Drop Four</h2>
-    <p>Classic column-drop strategy. Get four of your discs in a row before your opponent does.</p>
-  </a>
-
-  <a class="card" href="./counter-rush/">
-    <span class="tag">Co-op · timed</span>
-    <h2>Counter Rush</h2>
-    <p>Work together across a shared kitchen counter to plate orders before the clock runs out.</p>
-  </a>
-
-  <a class="card" href="./dodgeball-arena/">
-    <span class="tag">Real-time</span>
-    <h2>Ricochet Arena</h2>
-    <p>Move, dodge, and throw. Three hits and you're out — grab the shield to block one.</p>
-  </a>
-</main>
-</body>
-</html>
+</head><body><main>
+<section class="hero"><div class="badge">✨ 2 players · one tiny room code · zero signup</div><h1>Tiny Party Club</h1><p>Pick a mood, send your friend the 4-letter code, and you’re in. Every game is designed to make sense without a rulebook.</p></section>
+<section class="grid">
+<a class="card" href="./drop-four/"><div class="art">🍓🫐</div><div class="kicker">Cozy strategy · 3–5 min</div><h2>Berry Four</h2><p>Drop berries into the picnic basket. Make a line of four before your friend. First to win two rounds takes the match.</p><div class="meta"><span>Best for: plotting</span><span class="play">Play <span>→</span></span></div></a>
+<a class="card" href="./counter-rush/"><div class="art">🐰🍔</div><div class="kicker">Co-op rush · 2–4 min</div><h2>Bunny Bistro</h2><p>You each own half the pantry. Tap the ingredients your shared order needs and keep the lunch rush alive together.</p><div class="meta"><span>Best for: teamwork</span><span class="play">Play <span>→</span></span></div></a>
+<a class="card" href="./dodgeball-arena/"><div class="art">☁️⭐</div><div class="kicker">Quick reflexes · 2–3 min</div><h2>Puffball Toss</h2><p>Hop between three lanes, fling stars, and dodge incoming throws. Five hits wins—simple controls, instant chaos.</p><div class="meta"><span>Best for: chaos</span><span class="play">Play <span>→</span></span></div></a>
+</section><p class="foot">Works best when both players keep the game open. Multiplayer is peer-to-peer through WebRTC.</p>
+</main></body></html>
