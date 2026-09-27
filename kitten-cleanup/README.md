@@ -1,3 +1,3 @@
 # Kitten Cleanup
 
-Two-player cooperative reaction game. Each player owns one half of a 4x3 room grid and taps toys before they time out.
+A real-time cooperative run/jump/catch/sort game. Toys fall continuously. Each kitten can carry one item at a time and must run to the matching basket. Sort 15 before 5 toys hit the floor.

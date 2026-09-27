@@ -1,3 +1,3 @@
-# Honey Helpers
+# Honey Flight
 
-Two-player cooperative pattern game. Players alternate completing a visible flower sequence and fill five honey jars.
+A real-time two-player co-op flying game. Both players steer bees through a scrolling garden, dodge hazards, and collect 12 nectar together. The host simulates obstacles, collisions, health, and nectar; the guest sends input state over PeerJS.
