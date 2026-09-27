@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bumble Duel</title>
+<meta name="description" content="A two-player bee-dueling game you play with a friend on another device, connected peer-to-peer by room code, or solo against an AI wild bee.">
+<script src="../vendor/peerjs.min.js"></script>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; background: #0d1608;
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+  }
+  #game { position: fixed; inset: 0; display: block; background: #bfe6f5; touch-action: none; }
+
+  .overlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(10, 20, 8, 0.72); padding: 24px; overflow-y: auto;
+  }
+  .card {
+    width: 100%; max-width: 440px; text-align: center;
+    background: linear-gradient(180deg, #17240f 0%, #0c1408 100%);
+    border: 1px solid #3a4a26; border-radius: 16px; padding: 32px 28px;
+    box-shadow: 0 0 0 1px rgba(255,200,60,.06), 0 25px 60px -20px rgba(0,0,0,.9);
+    margin: auto;
+  }
+  .card h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: .04em; color: #fff2d0; text-shadow: 0 0 18px rgba(255,190,60,.5); }
+  .card h2 { margin: 0 0 8px; font-size: 20px; letter-spacing: .03em; color: #fff2d0; }
+  .card .sub { margin: 0 0 24px; color: #b9c4a4; font-size: 14px; line-height: 1.5; }
+  .btn {
+    display: inline-block; width: 100%; margin-top: 10px; padding: 13px 18px;
+    background: linear-gradient(180deg, #ffc93c, #f5a623); color: #2b1c00; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; letter-spacing: .02em; cursor: pointer;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.secondary { background: transparent; border: 1px solid #4a5c30; color: #d8e2c0; }
+  .btn.secondary:hover { border-color: #ffc93c; color: #fff2d0; }
+  .btn.ghost { background: transparent; border: none; color: #8fa06e; font-weight: 500; font-size: 13px; padding: 8px; margin-top: 14px; }
+  .btn.ghost:hover { color: #d8e2c0; }
+
+  .controls-grid { display: flex; gap: 14px; text-align: left; margin-bottom: 6px; }
+  .controls-col { flex: 1; background: #10190a; border: 1px solid #2c3a1c; border-radius: 10px; padding: 14px; }
+  .controls-col h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #fff2d0; }
+  .controls-col p { margin: 4px 0; font-size: 13px; color: #b9c4a4; }
+  .controls-col kbd {
+    display: inline-block; min-width: 20px; padding: 2px 6px; margin-right: 4px; text-align: center;
+    background: #1e2a12; border: 1px solid #3a4a26; border-radius: 5px; font-family: ui-monospace, monospace; font-size: 12px; color: #ffe9a8;
+  }
+
+  .winner-label { font-size: 22px; font-weight: 700; margin: 4px 0 2px; }
+  .winner-label.white { color: #ffe9a8; text-shadow: 0 0 14px rgba(255,220,120,.6); }
+  .winner-label.red { color: #ff6b4a; text-shadow: 0 0 14px rgba(255,90,60,.6); }
+
+  .code-display {
+    font-family: ui-monospace, monospace; font-size: 44px; font-weight: 700; letter-spacing: .22em;
+    color: #ffc93c; text-shadow: 0 0 20px rgba(255,200,60,.6); padding: 14px 0 6px; text-align: center;
+  }
+  .code-input {
+    width: 100%; text-align: center; font-family: ui-monospace, monospace; font-size: 30px; letter-spacing: .35em;
+    background: #10190a; border: 1px solid #3a4a26; border-radius: 10px; color: #fff2d0; padding: 12px 10px 12px 18px;
+  }
+  .code-input:focus { outline: 2px solid #ffc93c; outline-offset: 1px; }
+  .field-label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8fa06e; margin-bottom: 8px; }
+  .error-text { color: #ff6b4a; font-size: 13px; margin-top: 10px; min-height: 16px; }
+  .waiting-dots::after { content: ""; animation: dots 1.4s steps(4,end) infinite; }
+  @keyframes dots { 0% { content:""; } 25% { content:"."; } 50% { content:".."; } 75%,100% { content:"..."; } }
+
+  .hud-menu-btn {
+    position: fixed; top: 16px; right: 16px; z-index: 5;
+    background: rgba(15,22,10,.6); border: 1px solid #3a4a26; color: #d8e2c0;
+    font-size: 12px; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  }
+  .hud-menu-btn:hover { color: #fff2d0; border-color: #ffc93c; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<button class="hud-menu-btn" id="btn-hud-menu" hidden>Menu</button>
+
+<div class="overlay" id="overlay-start">
+  <div class="card">
+    <h1>🐝 BUMBLE DUEL</h1>
+    <p class="sub">Two bees. One garden. Fly in the direction you're facing, and land a sting to win.</p>
+    <button class="btn" id="btn-play">Play</button>
+    <button class="btn secondary" id="btn-instructions">Instructions</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-instructions" hidden>
+  <div class="card">
+    <h2>How to Play</h2>
+    <p class="sub">Every bee uses the same controls. In Single Player you fly the honey bee against
+    a wild bee. In Multiplayer, you and a friend each control your own bee from your own
+    keyboard on your own device.</p>
+    <div class="controls-grid">
+      <div class="controls-col">
+        <h3>Your Bee</h3>
+        <p><kbd>&uarr;</kbd> Speed up</p>
+        <p><kbd>&darr;</kbd> Slow down</p>
+        <p><kbd>&larr;</kbd><kbd>&rarr;</kbd> Turn</p>
+        <p><kbd>Space</kbd> Sting</p>
+      </div>
+      <div class="controls-col">
+        <h3>The Rules</h3>
+        <p>Bees drift, braking is the only way to stop.</p>
+        <p>Stings last under a second.</p>
+        <p>Max 3 stings in the air at once.</p>
+        <p>Both bees get a moment to buzz off before stings can land.</p>
+        <p>One hit ends the duel.</p>
+      </div>
+    </div>
+    <button class="btn" id="btn-instructions-back">Back</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-mode" hidden>
+  <div class="card">
+    <h2>Choose Mode</h2>
+    <p class="sub">How are you playing?</p>
+    <button class="btn" id="btn-mode-single">Single Player <span style="opacity:.75;font-weight:400">vs Wild Bee</span></button>
+    <button class="btn" id="btn-mode-multi">Multiplayer <span style="opacity:.75;font-weight:400">online, 2 devices</span></button>
+    <button class="btn ghost" id="btn-mode-back">Back</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-mp-choice" hidden>
+  <div class="card">
+    <h2>Multiplayer</h2>
+    <p class="sub">One of you hosts and shares the code; the other joins with it. Each of you plays from your own device.</p>
+    <button class="btn" id="btn-mp-host">Host a Game</button>
+    <button class="btn secondary" id="btn-mp-join">Join a Game</button>
+    <button class="btn ghost" id="btn-mp-choice-back">Back</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-mp-host" hidden>
+  <div class="card">
+    <p class="field-label">Your duel code</p>
+    <div class="code-display" id="host-code">----</div>
+    <p class="sub">Give this code to your opponent. Keep this tab open, you're hosting.</p>
+    <p class="sub" id="host-status" style="margin:0 0 6px">Waiting for opponent<span class="waiting-dots"></span></p>
+    <button class="btn ghost" id="btn-mp-host-cancel">Cancel</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-mp-join" hidden>
+  <div class="card">
+    <p class="field-label" for="join-code-input">Enter duel code</p>
+    <input class="code-input" id="join-code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="0000" autocomplete="off" />
+    <button class="btn" id="btn-mp-join-connect" style="margin-top:16px">Connect</button>
+    <p class="error-text" id="join-error"></p>
+    <button class="btn ghost" id="btn-mp-join-cancel">Cancel</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-gameover" hidden>
+  <div class="card">
+    <p style="margin:0;color:#8fa06e;font-size:12px;letter-spacing:.1em;text-transform:uppercase">Winner</p>
+    <p class="winner-label" id="winner-label">-</p>
+    <p class="sub" id="winner-sub" style="margin-top:4px">wins the duel.</p>
+    <button class="btn" id="btn-play-again">Play Again</button>
+    <button class="btn ghost" id="btn-gameover-menu">Main Menu</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildGarden();
+  }
+
+  // ---------- garden background ----------
+  var blossoms = [];
+  var clouds = [];
+  function buildGarden() {
+    var count = Math.floor((W * H) / 9000);
+    blossoms = [];
+    for (var i = 0; i < count; i++) {
+      blossoms.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: Math.random() * 3 + 2,
+        hue: Math.random() < 0.5 ? "#ffe1f0" : "#fff6cf",
+        a: Math.random() * 0.4 + 0.5
+      });
+    }
+    clouds = [];
+    var cloudCount = Math.max(3, Math.floor(W / 320));
+    for (var c = 0; c < cloudCount; c++) {
+      clouds.push({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.5,
+        s: Math.random() * 0.6 + 0.7
+      });
+    }
+  }
+
+  function drawGarden() {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#bfe6f5");
+    g.addColorStop(1, "#dff3e0");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    clouds.forEach(function (c) {
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, 40 * c.s, 16 * c.s, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x + 30 * c.s, c.y + 6 * c.s, 28 * c.s, 13 * c.s, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x - 28 * c.s, c.y + 6 * c.s, 26 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    blossoms.forEach(function (b) {
+      ctx.globalAlpha = b.a;
+      ctx.fillStyle = b.hue;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- constants ----------
+  var MAX_SPEED = 200;
+  var ACCEL = 230;
+  var DECEL = 250;
+  var TURN_RATE = 3.4; // radians / second
+  var BEE_RADIUS = 15;
+  var STING_SPEED = 360;
+  var STING_LIFETIME = 0.9;
+  var STING_MAX = 3;
+  var STING_RADIUS = 3;
+  var FIRE_COOLDOWN = 0.18;
+  var AI_FIRE_COOLDOWN = 1.5;
+  var AI_TURN_FACTOR = 0.38;
+  var AI_SPEED_FACTOR = 0.6;
+  var AI_AIM_REQUIRED = 0.1;
+  var POS_SEND_INTERVAL = 66; // ms
+  var PEER_PREFIX = "bumbleduel-party-";
+  var ROUND_GRACE = 2.2; // seconds before any sting can land, and before the AI will even try to fire
+
+  // ---------- input (always the local player's own bee: arrows + space) ----------
+  var keys = {};
+  var localFireQueued = false;
+
+  window.addEventListener("keydown", function (e) {
+    var k = e.key;
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].indexOf(k) !== -1) {
+      e.preventDefault();
+    }
+    keys[k] = true;
+    if (!e.repeat && k === " ") localFireQueued = true;
+  });
+  window.addEventListener("keyup", function (e) {
+    keys[e.key] = false;
+  });
+
+  function normalizeAngle(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  }
+
+  // ---------- entities ----------
+  function makeBee(id, color, x, y, angle, controlledBy) {
+    return {
+      id: id, color: color, x: x, y: y, angle: angle, speed: 0,
+      alive: true, cooldown: 0, thrusting: false, controlledBy: controlledBy,
+      aiJitter: 0, jitterTimer: 0, wingPhase: Math.random() * 10
+    };
+  }
+
+  var ships = [], stings = [], puffs = [];
+  var state = "start"; // start | mode | mp-choice | mp-host | mp-join | playing | exploding | gameover
+  var winner = null;
+  var mode = null; // "single" | "multiplayer"
+  var localSeat = 1;
+  var roundElapsed = 0;
+
+  function wrap(v, max) {
+    if (v < 0) return v + max;
+    if (v >= max) return v - max;
+    return v;
+  }
+
+  function startRound() {
+    ships = [
+      makeBee(1, "white", W * 0.28, H * 0.5, 0, mode === "multiplayer" ? (localSeat === 1 ? "local" : "remote") : "local"),
+      makeBee(2, "red", W * 0.72, H * 0.5, Math.PI, mode === "multiplayer" ? (localSeat === 2 ? "local" : "remote") : "ai")
+    ];
+    stings = [];
+    puffs = [];
+    winner = null;
+    localFireQueued = false;
+    roundElapsed = 0;
+    state = "playing";
+    document.getElementById("btn-hud-menu").hidden = false;
+  }
+
+  function fireSting(ship) {
+    if (!ship.alive) return false;
+    var active = 0;
+    for (var i = 0; i < stings.length; i++) if (stings[i].owner === ship.id) active++;
+    if (active >= STING_MAX) return false;
+    if (ship.cooldown > 0) return false;
+    ship.cooldown = FIRE_COOLDOWN;
+    var noseX = ship.x + Math.cos(ship.angle) * (BEE_RADIUS + 4);
+    var noseY = ship.y + Math.sin(ship.angle) * (BEE_RADIUS + 4);
+    var s = {
+      owner: ship.id, color: ship.color,
+      x: noseX, y: noseY,
+      vx: Math.cos(ship.angle) * STING_SPEED,
+      vy: Math.sin(ship.angle) * STING_SPEED,
+      angle: ship.angle,
+      life: STING_LIFETIME
+    };
+    stings.push(s);
+    return true;
+  }
+
+  function spawnPuff(x, y, color) {
+    var particles = [];
+    var count = 26;
+    for (var i = 0; i < count; i++) {
+      var a = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+      var speed = 50 + Math.random() * 140;
+      particles.push({
+        x: x, y: y,
+        vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+        r: 1.5 + Math.random() * 2.8,
+        life: 0.6 + Math.random() * 0.4,
+        maxLife: 0.6 + Math.random() * 0.4,
+        color: Math.random() < 0.5 ? color : (Math.random() < 0.5 ? "#fff6cf" : "#ffe1f0")
+      });
+    }
+    puffs.push({ particles: particles, t: 0 });
+  }
+
+  function shipById(id) {
+    for (var i = 0; i < ships.length; i++) if (ships[i].id === id) return ships[i];
+    return null;
+  }
+
+  // ---------- AI (the "wild bee") ----------
+  function updateAI(ship, target, dt) {
+    if (!ship.alive) return;
+    ship.jitterTimer -= dt;
+    if (ship.jitterTimer <= 0) {
+      ship.aiJitter = (Math.random() - 0.5) * 0.85;
+      ship.jitterTimer = 0.7 + Math.random() * 1.0;
+    }
+    if (!target.alive) { ship.thrusting = false; ship.speed = Math.max(0, ship.speed - DECEL * dt); return; }
+
+    var dx = target.x - ship.x, dy = target.y - ship.y;
+    var desired = normalizeAngle(Math.atan2(dy, dx) + ship.aiJitter);
+    var diff = normalizeAngle(desired - ship.angle);
+    var maxTurn = TURN_RATE * AI_TURN_FACTOR * dt;
+    if (Math.abs(diff) <= maxTurn) ship.angle = desired;
+    else ship.angle = normalizeAngle(ship.angle + (diff > 0 ? maxTurn : -maxTurn));
+
+    var diff2 = normalizeAngle(desired - ship.angle);
+    var thrusting = Math.abs(diff2) < Math.PI * 0.6;
+    ship.thrusting = thrusting;
+    if (thrusting) ship.speed = Math.min(MAX_SPEED * AI_SPEED_FACTOR, ship.speed + ACCEL * dt);
+    else ship.speed = Math.max(0, ship.speed - DECEL * dt);
+
+    ship.x = wrap(ship.x + Math.cos(ship.angle) * ship.speed * dt, W);
+    ship.y = wrap(ship.y + Math.sin(ship.angle) * ship.speed * dt, H);
+
+    if (ship.cooldown > 0) ship.cooldown -= dt;
+    // the wild bee won't try to sting until the round's grace period is over,
+    // so the player always gets a moment to get their bearings first
+    if (roundElapsed >= ROUND_GRACE && Math.abs(diff2) < AI_AIM_REQUIRED && ship.cooldown <= 0) {
+      if (fireSting(ship)) ship.cooldown = AI_FIRE_COOLDOWN;
+    }
+  }
+
+  // ---------- update ----------
+  var lastTime = null;
+  var posSendTimer = 0;
+
+  function update(dt) {
+    if (state !== "playing") return;
+    roundElapsed += dt;
+
+    ships.forEach(function (ship) {
+      ship.wingPhase += dt * (9 + ship.speed * 0.05);
+      if (!ship.alive) return;
+
+      if (ship.controlledBy === "local") {
+        if (keys["ArrowLeft"]) ship.angle -= TURN_RATE * dt;
+        if (keys["ArrowRight"]) ship.angle += TURN_RATE * dt;
+        if (keys["ArrowUp"]) ship.speed = Math.min(MAX_SPEED, ship.speed + ACCEL * dt);
+        if (keys["ArrowDown"]) ship.speed = Math.max(0, ship.speed - DECEL * dt);
+        ship.thrusting = !!keys["ArrowUp"];
+
+        ship.x = wrap(ship.x + Math.cos(ship.angle) * ship.speed * dt, W);
+        ship.y = wrap(ship.y + Math.sin(ship.angle) * ship.speed * dt, H);
+
+        if (ship.cooldown > 0) ship.cooldown -= dt;
+        if (localFireQueued) {
+          fireSting(ship);
+          localFireQueued = false;
+          if (mode === "multiplayer" && stings.length) {
+            var last = stings[stings.length - 1];
+            if (last.owner === ship.id) netSend({ type: "sting", x: last.x, y: last.y, vx: last.vx, vy: last.vy, angle: last.angle, owner: ship.id, color: ship.color });
+          }
+        }
+      } else if (ship.controlledBy === "ai") {
+        var target = shipById(ship.id === 1 ? 2 : 1);
+        updateAI(ship, target, dt);
+      }
+      // "remote" bees: position/angle arrive via network messages; nothing to simulate here
+    });
+
+    // multiplayer: broadcast local bee position at a steady rate
+    if (mode === "multiplayer") {
+      posSendTimer += dt * 1000;
+      if (posSendTimer >= POS_SEND_INTERVAL) {
+        posSendTimer = 0;
+        var mine = shipById(localSeat);
+        if (mine) netSend({ type: "pos", x: mine.x, y: mine.y, angle: mine.angle, thrusting: mine.thrusting });
+      }
+    }
+
+    for (var i = stings.length - 1; i >= 0; i--) {
+      var t = stings[i];
+      t.life -= dt;
+      t.x = wrap(t.x + t.vx * dt, W);
+      t.y = wrap(t.y + t.vy * dt, H);
+      if (t.life <= 0) { stings.splice(i, 1); continue; }
+
+      // during the opening grace period nobody can actually be hit, so both
+      // bees get a fair moment to get moving before a sting can land
+      if (roundElapsed < ROUND_GRACE) continue;
+
+      for (var s = 0; s < ships.length; s++) {
+        var ship = ships[s];
+        if (!ship.alive || ship.id === t.owner) continue;
+        // In multiplayer, only the client that actually controls a bee decides whether it got hit
+        if (mode === "multiplayer" && ship.id !== localSeat) continue;
+        var dx = ship.x - t.x, dy = ship.y - t.y;
+        if (dx * dx + dy * dy < (BEE_RADIUS + STING_RADIUS) * (BEE_RADIUS + STING_RADIUS)) {
+          ship.alive = false;
+          spawnPuff(ship.x, ship.y, ship.color === "white" ? "#fff2d0" : "#ff6b4a");
+          stings.splice(i, 1);
+          winner = t.owner;
+          state = "exploding";
+          if (mode === "multiplayer") netSend({ type: "hit" });
+          window.setTimeout(showGameOver, 1000);
+          break;
+        }
+      }
+    }
+
+    puffs.forEach(function (p) {
+      p.t += dt;
+      p.particles.forEach(function (pt) {
+        pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+        pt.vx *= 0.96; pt.vy *= 0.96;
+        pt.life -= dt;
+      });
+    });
+    for (var e = puffs.length - 1; e >= 0; e--) {
+      if (puffs[e].t > 1.2) puffs.splice(e, 1);
+    }
+  }
+
+  // ---------- render ----------
+  function drawBee(ship) {
+    if (!ship.alive) return;
+    var isWhite = ship.color === "white";
+    var body = isWhite ? "#ffd75e" : "#ff8552";
+    var bodyDark = isWhite ? "#3a2a05" : "#3a1204";
+    var wingColor = "rgba(255,255,255,0.55)";
+    var flap = 0.45 + Math.abs(Math.sin(ship.wingPhase)) * 0.55;
+
+    ctx.save();
+    ctx.translate(ship.x, ship.y);
+    ctx.rotate(ship.angle);
+
+    if (ship.thrusting) {
+      ctx.strokeStyle = isWhite ? "rgba(255,230,150,0.55)" : "rgba(255,160,120,0.55)";
+      ctx.lineWidth = 1.4;
+      for (var lTrail = 0; lTrail < 3; lTrail++) {
+        ctx.beginPath();
+        ctx.moveTo(-12 - lTrail * 4, -4 + lTrail * 4);
+        ctx.lineTo(-18 - lTrail * 4, -4 + lTrail * 4);
+        ctx.stroke();
+      }
+    }
+
+    // wings (drawn first, behind body), flapping
+    ctx.save();
+    ctx.fillStyle = wingColor;
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 0.8;
+    ctx.save();
+    ctx.translate(1, -6);
+    ctx.scale(1, flap);
+    ctx.beginPath();
+    ctx.ellipse(0, -3, 8.5, 5.5, -0.3, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(1, 6);
+    ctx.scale(1, flap);
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 8.5, 5.5, 0.3, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+
+    // abdomen (rear)
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.ellipse(-6, 0, 10, 6.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // stripes across abdomen
+    ctx.fillStyle = bodyDark;
+    [-11, -6, -1].forEach(function (sx) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(-6, 0, 10, 6.4, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillRect(sx, -8, 2.6, 16);
+      ctx.restore();
+    });
+    ctx.strokeStyle = bodyDark;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(-6, 0, 10, 6.4, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // thorax (middle, fuzzy)
+    ctx.fillStyle = bodyDark;
+    ctx.beginPath();
+    ctx.ellipse(4, 0, 4.6, 4.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // head (front)
+    ctx.fillStyle = bodyDark;
+    ctx.beginPath();
+    ctx.ellipse(11, 0, 4, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // antennae
+    ctx.strokeStyle = bodyDark;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(13, -2); ctx.quadraticCurveTo(18, -6, 20, -4);
+    ctx.moveTo(13, 2); ctx.quadraticCurveTo(18, 6, 20, 4);
+    ctx.stroke();
+
+    // eyes
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(12, -1.6, 1.1, 0, Math.PI * 2);
+    ctx.arc(12, 1.6, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // stinger (rear tip)
+    ctx.fillStyle = bodyDark;
+    ctx.beginPath();
+    ctx.moveTo(-15, -1.4);
+    ctx.lineTo(-19, 0);
+    ctx.lineTo(-15, 1.4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawSting(t) {
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.rotate(t.angle);
+    var fade = Math.min(1, t.life / 0.25);
+    ctx.globalAlpha = 0.6 + 0.4 * fade;
+    ctx.fillStyle = t.color === "white" ? "#ffe98a" : "#ff9a6a";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(5, 0);
+    ctx.lineTo(-4, -2);
+    ctx.lineTo(-4, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawPuffs() {
+    puffs.forEach(function (ex) {
+      ex.particles.forEach(function (p) {
+        if (p.life <= 0) return;
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  function drawGraceBanner() {
+    if (state !== "playing" || roundElapsed >= ROUND_GRACE) return;
+    var remaining = Math.max(0, ROUND_GRACE - roundElapsed);
+    var alpha = Math.min(1, remaining / ROUND_GRACE + 0.15);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#3a2a05";
+    ctx.font = "bold 26px 'Trebuchet MS', sans-serif";
+    ctx.fillText("Buzz off! Get ready...", W / 2, 64);
+    ctx.font = "bold 15px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = "#5a4210";
+    ctx.fillText(Math.ceil(remaining) + "s until stings can land", W / 2, 88);
+    ctx.restore();
+  }
+
+  function render() {
+    drawGarden();
+    stings.forEach(drawSting);
+    ships.forEach(drawBee);
+    drawPuffs();
+    drawGraceBanner();
+  }
+
+  function loop(ts) {
+    if (lastTime == null) lastTime = ts;
+    var dt = Math.min(0.05, (ts - lastTime) / 1000);
+    lastTime = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- networking (multiplayer only) ----------
+  var net = { peer: null, conn: null, isHost: false, code: null };
+
+  function netSend(msg) {
+    if (net.conn && net.conn.open) net.conn.send(msg);
+  }
+
+  function randomCode() {
+    return String(Math.floor(1000 + Math.random() * 9000));
+  }
+
+  function teardownNet() {
+    if (net.conn) { try { net.conn.close(); } catch (e) {} net.conn = null; }
+    if (net.peer) { try { net.peer.destroy(); } catch (e) {} net.peer = null; }
+    net.isHost = false; net.code = null;
+  }
+
+  function onNetData(msg) {
+    if (msg.type === "pos") {
+      var remote = shipById(localSeat === 1 ? 2 : 1);
+      if (remote) { remote.x = msg.x; remote.y = msg.y; remote.angle = msg.angle; remote.thrusting = msg.thrusting; }
+    } else if (msg.type === "sting") {
+      stings.push({ owner: msg.owner, color: msg.color, x: msg.x, y: msg.y, vx: msg.vx, vy: msg.vy, angle: msg.angle, life: STING_LIFETIME });
+    } else if (msg.type === "hit") {
+      // The sender's own bee died and is telling us; the sender is always
+      // the one who stung from our point of view, so WE win and THEIR bee (our remote) dies.
+      var remoteId = localSeat === 1 ? 2 : 1;
+      var remoteShip = shipById(remoteId);
+      if (remoteShip && remoteShip.alive) {
+        remoteShip.alive = false;
+        spawnPuff(remoteShip.x, remoteShip.y, remoteShip.color === "white" ? "#fff2d0" : "#ff6b4a");
+        winner = localSeat;
+        state = "exploding";
+        window.setTimeout(showGameOver, 1000);
+      }
+    } else if (msg.type === "matched") {
+      startRound();
+    } else if (msg.type === "rematch") {
+      startRound();
+    }
+  }
+
+  function wireConnection(conn) {
+    net.conn = conn;
+    conn.on("data", onNetData);
+    conn.on("close", function () { showNetError("Connection to your opponent was lost."); goToMenu(); });
+    conn.on("error", function () { showNetError("Connection problem. Try again."); goToMenu(); });
+  }
+
+  function hostGame() {
+    var code = randomCode();
+    net.isHost = true; net.code = code; localSeat = 1;
+    document.getElementById("host-code").textContent = code;
+    document.getElementById("host-status").innerHTML = 'Waiting for opponent<span class="waiting-dots"></span>';
+    showOverlay("overlay-mp-host");
+    var peer = new Peer(PEER_PREFIX + code);
+    net.peer = peer;
+    peer.on("connection", function (conn) {
+      wireConnection(conn);
+      conn.on("open", function () {
+        document.getElementById("host-status").textContent = "Opponent connected!";
+        window.setTimeout(function () {
+          hideAllOverlays();
+          startRound();
+          netSend({ type: "matched" });
+        }, 400);
+      });
+    });
+    peer.on("error", function (err) {
+      if (err.type === "unavailable-id") { peer.destroy(); hostGame(); return; }
+      document.getElementById("host-status").textContent = "Connection error (" + err.type + "). Try again.";
+    });
+  }
+
+  function joinGame(codeRaw) {
+    var code = (codeRaw || "").trim();
+    var errEl = document.getElementById("join-error");
+    errEl.textContent = "";
+    if (!/^[0-9]{4}$/.test(code)) { errEl.textContent = "Enter the 4-digit code exactly as given."; return; }
+    localSeat = 2; net.isHost = false; net.code = code;
+    document.getElementById("btn-mp-join-connect").disabled = true;
+    var peer = new Peer();
+    net.peer = peer;
+    peer.on("open", function () {
+      var conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+      wireConnection(conn);
+      conn.on("open", function () {
+        document.getElementById("btn-mp-join-connect").disabled = false;
+      });
+    });
+    peer.on("error", function (err) {
+      document.getElementById("btn-mp-join-connect").disabled = false;
+      if (err.type === "peer-unavailable") errEl.textContent = "No game found with that code.";
+      else errEl.textContent = "Connection error (" + err.type + "). Try again.";
+      teardownNet();
+    });
+  }
+
+  function showNetError(msg) {
+    var errEl = document.getElementById("join-error");
+    if (errEl) errEl.textContent = msg;
+  }
+
+  // ---------- screens ----------
+  var overlays = ["overlay-start", "overlay-instructions", "overlay-mode", "overlay-mp-choice", "overlay-mp-host", "overlay-mp-join", "overlay-gameover"];
+  function hideAllOverlays() {
+    overlays.forEach(function (id) { document.getElementById(id).hidden = true; });
+  }
+  function showOverlay(id) {
+    hideAllOverlays();
+    document.getElementById(id).hidden = false;
+  }
+
+  function goToMenu() {
+    teardownNet();
+    ships = []; stings = []; puffs = [];
+    document.getElementById("btn-hud-menu").hidden = true;
+    showOverlay("overlay-mode");
+  }
+
+  var winnerLabel = document.getElementById("winner-label");
+  var winnerSub = document.getElementById("winner-sub");
+
+  function showGameOver() {
+    state = "gameover";
+    winnerLabel.textContent = winner === 1 ? "HONEY BEE" : "WILD BEE";
+    winnerLabel.className = "winner-label " + (winner === 1 ? "white" : "red");
+    if (mode === "single") {
+      winnerSub.textContent = winner === 1 ? "You win!" : "The wild bee wins. Try again?";
+    } else {
+      winnerLabel.textContent = winner === 1 ? "PLAYER 1'S BEE" : "PLAYER 2'S BEE";
+      winnerSub.textContent = (winner === localSeat) ? "You win!" : "Your opponent wins.";
+    }
+    showOverlay("overlay-gameover");
+  }
+
+  document.getElementById("btn-play").addEventListener("click", function () { showOverlay("overlay-mode"); });
+  document.getElementById("btn-instructions").addEventListener("click", function () { showOverlay("overlay-instructions"); });
+  document.getElementById("btn-instructions-back").addEventListener("click", function () { showOverlay("overlay-start"); });
+
+  document.getElementById("btn-mode-single").addEventListener("click", function () {
+    mode = "single"; localSeat = 1;
+    hideAllOverlays();
+    startRound();
+  });
+  document.getElementById("btn-mode-multi").addEventListener("click", function () { showOverlay("overlay-mp-choice"); });
+  document.getElementById("btn-mode-back").addEventListener("click", function () { showOverlay("overlay-start"); });
+
+  document.getElementById("btn-mp-host").addEventListener("click", function () { mode = "multiplayer"; hostGame(); });
+  document.getElementById("btn-mp-join").addEventListener("click", function () {
+    mode = "multiplayer";
+    document.getElementById("join-code-input").value = "";
+    document.getElementById("join-error").textContent = "";
+    showOverlay("overlay-mp-join");
+    document.getElementById("join-code-input").focus();
+  });
+  document.getElementById("btn-mp-choice-back").addEventListener("click", function () { showOverlay("overlay-mode"); });
+  document.getElementById("btn-mp-host-cancel").addEventListener("click", function () { teardownNet(); showOverlay("overlay-mp-choice"); });
+  document.getElementById("btn-mp-join-cancel").addEventListener("click", function () { teardownNet(); showOverlay("overlay-mp-choice"); });
+
+  var joinCodeInput = document.getElementById("join-code-input");
+  joinCodeInput.addEventListener("input", function () {
+    joinCodeInput.value = joinCodeInput.value.replace(/[^0-9]/g, "").slice(0, 4);
+  });
+  joinCodeInput.addEventListener("keydown", function (e) { if (e.key === "Enter") joinGame(joinCodeInput.value); });
+  document.getElementById("btn-mp-join-connect").addEventListener("click", function () { joinGame(joinCodeInput.value); });
+
+  document.getElementById("btn-play-again").addEventListener("click", function () {
+    hideAllOverlays();
+    if (mode === "multiplayer") {
+      startRound();
+      netSend({ type: "rematch" });
+    } else {
+      startRound();
+    }
+  });
+  document.getElementById("btn-gameover-menu").addEventListener("click", goToMenu);
+  document.getElementById("btn-hud-menu").addEventListener("click", goToMenu);
+
+  window.addEventListener("resize", resize);
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
