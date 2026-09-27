@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Party Games</title>
+<meta name="description" content="Three peer-to-peer multiplayer games — pick one and share the link.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@500;700&display=swap">
+<style>
+  :root { color-scheme: dark; --bg:#0c0e14; --panel:#151824; --edge:#262c40; --ink:#eef1fb; --dim:#9aa3c0; --accent:#8b8cf9; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background: radial-gradient(1200px 600px at 50% -10%, #1c2140 0%, #0c0e14 55%); color:var(--ink);
+    font-family:"Manrope",sans-serif; display:flex; justify-content:center; padding: 40px 16px; }
+  main { width:100%; max-width:640px; }
+  h1 { font-family:"Space Grotesk",sans-serif; font-size:32px; margin: 0 0 6px; }
+  p.lede { color:var(--dim); margin: 0 0 28px; }
+  .card { display:block; background:var(--panel); border:1px solid var(--edge); border-radius:16px; padding:20px; margin-bottom:14px; text-decoration:none; color:var(--ink); transition: border-color .15s ease, transform .08s ease; }
+  .card:hover { border-color: var(--accent); }
+  .card:active { transform: translateY(1px); }
+  .card h2 { font-family:"Space Grotesk",sans-serif; font-size:19px; margin:0 0 4px; }
+  .card p { margin:0; color:var(--dim); font-size:14px; line-height:1.5; }
+  .tag { display:inline-block; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Party Games</h1>
+  <p class="lede">Three small multiplayer games, each played by two people on separate devices connected directly to each other. Open one, share the room code with a friend, and play.</p>
+
+  <a class="card" href="./drop-four/">
+    <span class="tag">Turn-based</span>
+    <h2>Drop Four</h2>
+    <p>Classic column-drop strategy. Get four of your discs in a row before your opponent does.</p>
+  </a>
+
+  <a class="card" href="./counter-rush/">
+    <span class="tag">Co-op · timed</span>
+    <h2>Counter Rush</h2>
+    <p>Work together across a shared kitchen counter to plate orders before the clock runs out.</p>
+  </a>
+
+  <a class="card" href="./dodgeball-arena/">
+    <span class="tag">Real-time</span>
+    <h2>Ricochet Arena</h2>
+    <p>Move, dodge, and throw. Three hits and you're out — grab the shield to block one.</p>
+  </a>
+</main>
+</body>
+</html>
