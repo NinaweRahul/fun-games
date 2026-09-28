@@ -1,0 +1,30 @@
+/* Shared styles for the mode picker, online lobby and connection badge.
+   Everything inherits colors from each game's own theme. */
+.fg-mode { margin: 0 0 18px; }
+.fg-line { font-weight: 700; margin-bottom: 10px; }
+.fg-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.fg-chip {
+  font: inherit; color: inherit; background: transparent;
+  border: 2px solid currentColor; border-radius: 999px;
+  padding: 6px 14px; cursor: pointer; opacity: 0.7;
+}
+.fg-chip.on { opacity: 1; background: rgba(127, 127, 127, 0.28); font-weight: 700; }
+.fg-input {
+  font: inherit; font-size: 1.3rem; letter-spacing: 0.2em; text-transform: uppercase; text-align: center;
+  width: 100%; box-sizing: border-box; padding: 10px; margin: 0 0 10px;
+  border: 2px solid currentColor; border-radius: 10px; background: transparent; color: inherit;
+  user-select: text; -webkit-user-select: text; touch-action: manipulation;
+}
+.fg-code { display: flex; gap: 8px; justify-content: center; margin: 0 0 18px; min-height: 3.4rem; }
+.fg-tile {
+  min-width: 2.2ch; padding: 8px 6px;
+  border: 2px solid currentColor; border-radius: 10px;
+  font-size: 2rem; font-weight: 700; line-height: 1;
+  background: rgba(127, 127, 127, 0.15);
+}
+.fg-status { min-height: 1.4em; margin: 6px 0 16px; color: var(--muted, inherit); }
+.fg-badge {
+  position: fixed; left: 8px; bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  font: 600 11px system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, 0.5);
+  padding: 2px 8px; border-radius: 999px; pointer-events: none; z-index: 20;
+}

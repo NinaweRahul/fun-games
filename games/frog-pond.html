@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Frog Pond</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #2c8a6b;
+  --ink: #1d3b34;
+  --muted: #4e6f66;
+  --lily: #ff5c9d;
+  --moss: #3d8bff;
+  --lily-btn: #e8407f;
+  --moss-btn: #2f74e6;
+  --sun: #ffe066;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); touch-action: none; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Fredoka", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Top bar */
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px 4px;
+}
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 14px;
+  border: 3px solid;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 700;
+}
+.chip.k0 { border-color: var(--lily); }
+.chip.k1 { border-color: var(--moss); }
+.chip b { font-size: 1.2rem; min-width: 1.4ch; text-align: right; }
+#time { color: #fff; font-weight: 700; font-size: 1.7rem; }
+#time.low { color: var(--sun); }
+
+#stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+canvas { display: block; border-radius: 18px; box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25); }
+
+/* Solo and online: just your own big tongue button */
+body.fg-solo .tongue { display: none; }
+body.fg-solo.fg-me-0 .tongue.k0, body.fg-solo.fg-me-1 .tongue.k1 { display: flex; }
+
+/* Tongue buttons */
+#fire { display: flex; gap: 12px; padding: 8px 12px 14px; }
+.tongue {
+  flex: 1; height: 84px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font: 700 1.35rem "Fredoka", system-ui, sans-serif;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 22px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.tongue.k0 { background: var(--lily-btn); }
+.tongue.k1 { background: var(--moss-btn); }
+.tongue:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3); }
+.tongue .em { font-size: 1.7rem; }
+.tongue .key { font-size: 0.85rem; opacity: 0.9; border: 2px solid #fff; border-radius: 8px; padding: 0 7px; }
+@media (pointer: coarse) { .tongue .key { display: none; } }
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(226, 250, 232, 0.93);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 380px; padding: 24px; }
+.hidden { display: none !important; }
+.hero { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.3rem, 10vw, 3.4rem); }
+h2 { font-size: clamp(1.9rem, 8vw, 2.7rem); }
+.bar { width: 120px; height: 5px; border-radius: 3px; margin: 14px auto 16px; background: linear-gradient(90deg, var(--lily) 50%, var(--moss) 50%); }
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.4; font-size: 1.1rem; }
+button.big {
+  display: block; width: 100%; margin: 0 0 14px;
+  padding: 13px 20px;
+  font: 700 1.2rem "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  background: #a8f0b8;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+}
+button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+button.big.ghost { background: #fff; }
+button.big:focus-visible { outline-color: var(--ink); }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.45; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--ink); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+#tally { color: var(--muted); margin: 10px 0 26px; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="chip k0">Lily <b id="n0">0</b></div>
+  <div id="time">1:00</div>
+  <div class="chip k1">Moss <b id="n1">0</b></div>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="fire">
+  <button class="tongue k0" data-p="0"><span class="em">👅</span>Lily <span class="key">A</span></button>
+  <button class="tongue k1" data-p="1"><span class="em">👅</span>Moss <span class="key">L</span></button>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <div class="hero">🐸🪰🐸</div>
+    <h1>Frog Pond</h1>
+    <div class="bar"></div>
+    <p class="sub">Two hungry frogs. One buzzing pond. Time your tongue and snatch the flies.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p>Each frog's aim <b>swings back and forth</b>. Watch the dotted line, and hit your big tongue button when it points at a fly.</p>
+      <p>A regular fly is worth <b>1 point</b>. A shiny <b>golden fly</b> is worth 3 but zips around fast and does not stay long.</p>
+      <p>If your tongue <b>misses</b>, your frog gets sleepy and cannot shoot for a moment, so do not just mash the button.</p>
+      <p>Both frogs can go for the same fly. Whoever shoots first gets it. Most points after 60 seconds wins.</p>
+      <p><span class="dot" style="background:var(--lily)"></span><b>Lily (left, pink):</b> A key or the pink button</p>
+      <p><span class="dot" style="background:var(--moss)"></span><b>Moss (right, blue):</b> L key or the blue button</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <div class="hero" id="endEmoji">🏆</div>
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const W = 600, H = 600;
+const TIME = 60, REACH = 470, OUT = 0.09, BACK = 0.16, PAUSE = 1.1;   // round length, tongue reach and timing, whiff penalty
+const AMP = 0.87, OM = 2.1, NFLY = 7;                                  // aim swing size and speed, flies on the pond
+const ZONE = { x0: 40, x1: 560, y0: 40, y1: 470 };
+const RGB = ["255,92,157", "61,139,255"];
+const FROG = [
+  { name: "Lily", x: 100, y: 508, base: -0.805, color: "#ff5c9d", body: "#67d15a", dark: "#3faa46" },
+  { name: "Moss", x: 500, y: 508, base: -2.336, color: "#3d8bff", body: "#3fc9b0", dark: "#22a08c" }
+];
+const DECOR = [[300, 120, 32], [130, 250, 26], [470, 200, 30], [330, 400, 24], [80, 420, 22], [540, 400, 22]];
+
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = W * 2; cv.height = H * 2;
+
+let frogs, flies, parts = [], pops = [];
+let flySeq = 0, tongueSeq = 0, evq = [], snapT = 0, aiCool = 0;
+let state = "menu", timeLeft = TIME, cnt = 3, goT = 0, goldWait = 6, spawnT = 0, age = 0;
+const score = [0, 0];
+
+/* ---------- setup ---------- */
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+function newFly(gold) {
+  return {
+    id: ++flySeq,
+    x: rnd(ZONE.x0, ZONE.x1), y: rnd(ZONE.y0, ZONE.y1), a: rnd(0, Math.PI * 2), w: 0, wt: 0,
+    sp: gold ? 150 : rnd(65, 105), gold, r: gold ? 11 : 8, caught: false,
+    born: age, s: rnd(0, 6), life: gold ? 7 : Infinity
+  };
+}
+
+function setup() {
+  age = 0;
+  frogs = FROG.map((f, i) => {
+    const phase = i ? Math.PI / 2 : 0;
+    return { id: i, x: f.x, y: f.y, phase, angle: f.base + AMP * Math.sin(phase), pauseT: 0, tongue: null, hopT: 0 };
+  });
+  flies = [];
+  for (let i = 0; i < NFLY; i++) flies.push(newFly(false));
+  parts = []; pops = [];
+  score[0] = score[1] = 0;
+  timeLeft = TIME; goldWait = rnd(6, 9); spawnT = 0;
+}
+
+function startGame() {
+  setup();
+  cnt = 3; state = "count";
+  if (FG.isGuest) return;   // the host runs the countdown
+  const iv = setInterval(() => {
+    cnt--;
+    if (cnt <= 0) { clearInterval(iv); state = "play"; goT = performance.now(); }
+  }, 700);
+}
+
+/* ---------- firing ---------- */
+const mouth = (fr, a) => ({ x: fr.x + Math.cos(a) * 26, y: fr.y + Math.sin(a) * 26 });
+
+function fire(i, aim) {
+  const fr = frogs[i];
+  if (FG.isGuest) { if (state === "play" && !fr.tongue && fr.pauseT <= 0) FG.send({ t: "fire", a: fr.angle }); return; }
+  if (state !== "play" || fr.tongue || fr.pauseT > 0) return;
+  const a = aim !== undefined && Math.abs(aim - fr.angle) < 0.6 ? aim : fr.angle;   // use the angle your friend saw
+  const m = mouth(fr, a), dx = Math.cos(a), dy = Math.sin(a);
+  let best = null, bestAlong = Infinity;
+  for (const f of flies) {
+    if (f.caught) continue;
+    const rx = f.x - m.x, ry = f.y - m.y;
+    const along = rx * dx + ry * dy, perp = Math.abs(rx * dy - ry * dx);
+    if (along > 0 && along < REACH && perp < f.r + 14 && along < bestAlong) { best = f; bestAlong = along; }
+  }
+  if (best) best.caught = true;
+  fr.tongue = { id: ++tongueSeq, a, mx: m.x, my: m.y, len: best ? bestAlong : REACH, t: 0, target: best };
+}
+
+function stepTongue(fr, dt) {
+  const T = fr.tongue;
+  T.t += dt;
+  const e = u => u * (2 - u);
+  const ext = T.t < OUT ? e(T.t / OUT) : 1 - e(Math.min((T.t - OUT) / BACK, 1));
+  T.tx = T.mx + Math.cos(T.a) * T.len * ext;
+  T.ty = T.my + Math.sin(T.a) * T.len * ext;
+  if (T.target && T.t >= OUT) { T.target.x = T.tx; T.target.y = T.ty; }
+  if (T.t >= OUT + BACK) {
+    if (T.target) {
+      const v = T.target.gold ? 3 : 1;
+      if (FG.isHost) evq.push(["c", fr.id, T.target.gold ? 1 : 0]);
+      score[fr.id] += v;
+      fr.hopT = 0.3;
+      pops.push({ x: fr.x, y: fr.y - 60, text: T.target.gold ? "+3!" : "+1", color: T.target.gold ? "#ff9f00" : FROG[fr.id].color, t0: performance.now() });
+      for (let i = 0; i < 8; i++) {
+        const an = rnd(0, Math.PI * 2), s = rnd(30, 110);
+        parts.push({ x: fr.x, y: fr.y - 20, vx: Math.cos(an) * s, vy: Math.sin(an) * s - 30, life: rnd(0.4, 0.8), size: rnd(2.5, 4.5), color: T.target.gold ? "#ffd43b" : FROG[fr.id].color });
+      }
+      flies = flies.filter(f => f !== T.target);
+      if (T.target.gold) goldWait = rnd(7, 11);
+    } else {
+      fr.pauseT = PAUSE;
+      if (FG.isHost) evq.push(["w", fr.id]);
+      pops.push({ x: fr.x, y: fr.y - 60, text: "Whiff!", color: "#1d3b34", t0: performance.now() });
+    }
+    fr.tongue = null;
+  }
+}
+
+addEventListener("keydown", e => {
+  if (e.repeat) return;
+  const h = FG.human();
+  if (h >= 0) {   // solo or online: A, L, Space or Enter all fire your frog
+    if (["KeyA", "KeyL", "Space", "Enter"].includes(e.code) && state === "play") { e.preventDefault(); fire(h); }
+  } else {
+    if (e.code === "KeyA") fire(0);
+    if (e.code === "KeyL") fire(1);
+  }
+});
+document.querySelectorAll(".tongue").forEach(b => {
+  b.addEventListener("pointerdown", e => { e.preventDefault(); fire(+b.dataset.p); });
+});
+
+/* ---------- update ---------- */
+function update(dt) {
+  age += dt;
+  if (FG.mode === "cpu") aiFrog(dt);
+
+  frogs.forEach(fr => {
+    if (fr.pauseT > 0) fr.pauseT -= dt;
+    else if (!fr.tongue) fr.phase += OM * dt;
+    if (!fr.tongue) fr.angle = FROG[fr.id].base + AMP * Math.sin(fr.phase);
+    if (fr.hopT > 0) fr.hopT -= dt;
+    if (fr.tongue) stepTongue(fr, dt);
+  });
+
+  // flies buzz around
+  for (const f of flies) {
+    if (f.caught) continue;
+    f.wt -= dt;
+    if (f.wt <= 0) { f.w = rnd(-1, 1) * (f.gold ? 9 : 6); f.wt = rnd(0.25, 0.85); }
+    f.a += f.w * dt;
+    const sp = f.sp * (0.7 + 0.3 * Math.sin((age - f.born) * 5 + f.s));
+    f.x += Math.cos(f.a) * sp * dt; f.y += Math.sin(f.a) * sp * dt;
+    if (f.x < ZONE.x0) { f.x = ZONE.x0; f.a = Math.PI - f.a; }
+    if (f.x > ZONE.x1) { f.x = ZONE.x1; f.a = Math.PI - f.a; }
+    if (f.y < ZONE.y0) { f.y = ZONE.y0; f.a = -f.a; }
+    if (f.y > ZONE.y1) { f.y = ZONE.y1; f.a = -f.a; }
+    f.life -= dt;
+  }
+  const hadGold = flies.some(f => f.gold);
+  flies = flies.filter(f => f.life > 0 || f.caught);
+  if (hadGold && !flies.some(f => f.gold)) goldWait = rnd(6, 9);
+
+  // keep the pond stocked
+  if (state !== "over") {
+    if (flies.filter(f => !f.gold).length < NFLY) {
+      spawnT -= dt;
+      if (spawnT <= 0) { flies.push(newFly(false)); spawnT = 0.6; }
+    }
+    if (state === "play" && !flies.some(f => f.gold)) {
+      goldWait -= dt;
+      if (goldWait <= 0 && timeLeft > 8) flies.push(newFly(true));
+    }
+  }
+
+  if (state === "play") {
+    timeLeft -= dt;
+    if (timeLeft <= 0) finish();
+  }
+}
+
+function finish() {
+  timeLeft = 0; state = "over";
+  hostSend(0, true);
+  setTimeout(() => {
+    const w = score[0] === score[1] ? -1 : score[0] > score[1] ? 0 : 1;
+    $("endEmoji").textContent = w < 0 ? "🤝" : "🏆";
+    $("result").textContent = w < 0 ? "It's a tie!" : FROG[w].name + " wins!";
+    $("tally").textContent = "Lily " + score[0] + "  |  Moss " + score[1];
+    if (FG.isHost) FG.send({ t: "end", e: $("endEmoji").textContent, r: $("result").textContent, y: $("tally").textContent });
+    show("end");
+  }, 1300);
+}
+
+/* ---------- computer opponent ---------- */
+// Moss watches the aim line and fires when a fly is on it. Easier levels react slower and miss more.
+function aiFrog(dt) {
+  const fr = frogs[1];
+  if (state !== "play" || fr.tongue || fr.pauseT > 0) return;
+  aiCool -= dt;
+  if (aiCool > 0) return;
+  const a = fr.angle, m = mouth(fr, a), dx = Math.cos(a), dy = Math.sin(a), tol = FG.pick(1, 5, 9);
+  let target = null;
+  for (const f of flies) {
+    if (f.caught) continue;
+    const rx = f.x - m.x, ry = f.y - m.y, along = rx * dx + ry * dy, perp = Math.abs(rx * dy - ry * dx);
+    if (along > 0 && along < REACH && perp < f.r + tol && (!target || f.gold)) target = f;
+  }
+  if (target && Math.random() < FG.pick(0.06, 0.18, 0.45) * dt * 60) { fire(1); aiCool = FG.pick(1.7, 1.0, 0.55); }
+  else if (!target && Math.random() < FG.pick(0.004, 0.0012, 0) * dt * 60) { fire(1); aiCool = 0.5; }   // now and then, a wild lick
+}
+
+/* ---------- online: the host runs the pond and streams it, the guest draws it and sends "fire" ---------- */
+function hostSend(dt, force) {
+  if (!FG.isHost || (!force && state !== "count" && state !== "play")) return;
+  snapT += dt;
+  if (snapT < 0.033 && !force) return;
+  snapT = 0;
+  const r1 = v => Math.round(v * 10) / 10, r3 = v => Math.round(v * 1000) / 1000;
+  FG.send({ t: "s", st: state, cnt, tl: r1(timeLeft), sc: score.slice(),
+    fr: frogs.map(f => [r3(f.phase), r3(f.pauseT), r3(f.hopT), f.tongue ? [r3(f.tongue.a), r1(f.tongue.mx), r1(f.tongue.my), r1(f.tongue.len), r3(f.tongue.t), f.tongue.id] : 0]),
+    fl: flies.map(f => [f.id, r1(f.x), r1(f.y), r3(f.a), f.gold ? 1 : 0, f.caught ? 1 : 0, f.gold ? r1(f.life) : 0]),
+    ev: evq.splice(0) });
+}
+
+function catchFx(id, gold) {
+  const fr = frogs[id];
+  fr.hopT = 0.3;
+  pops.push({ x: fr.x, y: fr.y - 60, text: gold ? "+3!" : "+1", color: gold ? "#ff9f00" : FROG[id].color, t0: performance.now() });
+  for (let i = 0; i < 8; i++) {
+    const an = rnd(0, Math.PI * 2), s = rnd(30, 110);
+    parts.push({ x: fr.x, y: fr.y - 20, vx: Math.cos(an) * s, vy: Math.sin(an) * s - 30, life: rnd(0.4, 0.8), size: rnd(2.5, 4.5), color: gold ? "#ffd43b" : FROG[id].color });
+  }
+}
+
+function guestUpdate(dt) {
+  age += dt;
+  if (state === "play") timeLeft = Math.max(0, timeLeft - dt);
+  frogs.forEach(fr => {
+    if (fr.pauseT > 0) fr.pauseT -= dt; else if (!fr.tongue) fr.phase += OM * dt;
+    if (!fr.tongue) fr.angle = FROG[fr.id].base + AMP * Math.sin(fr.phase);
+    if (fr.hopT > 0) fr.hopT -= dt;
+    const T = fr.tongue;
+    if (T) {
+      T.t += dt;
+      const e = u => u * (2 - u);
+      const ext = T.t < OUT ? e(T.t / OUT) : 1 - e(Math.min((T.t - OUT) / BACK, 1));
+      T.tx = T.mx + Math.cos(T.a) * T.len * ext;
+      T.ty = T.my + Math.sin(T.a) * T.len * ext;
+      fr.angle = T.a;
+    }
+  });
+}
+
+function onNet(m) {
+  if (FG.isHost) {
+    if (m.t === "fire") fire(1, m.a);
+  } else if (m.t === "s") {
+    state = m.st; cnt = m.cnt; timeLeft = m.tl; score[0] = m.sc[0]; score[1] = m.sc[1];
+    const lag = FG.ping / 2000;
+    m.fr.forEach((v, i) => {
+      const fr = frogs[i], T = v[3];
+      fr.pauseT = v[1]; fr.hopT = v[2];
+      fr.phase = v[0] + (v[1] > 0 || T ? 0 : OM * lag);
+      if (T) {
+        if (!fr.tongue || fr.tongue.id !== T[5]) fr.tongue = { a: T[0], mx: T[1], my: T[2], len: T[3], t: T[4], id: T[5], target: null };
+        else fr.tongue.t = T[4];
+      } else fr.tongue = null;
+    });
+    const old = new Map(flies.map(f => [f.id, f]));
+    flies = m.fl.map(v => {
+      const f = old.get(v[0]) || { id: v[0], born: age, s: (v[0] * 1.7) % 6 };
+      f.x = v[1]; f.y = v[2]; f.a = v[3]; f.gold = !!v[4]; f.r = f.gold ? 11 : 8; f.caught = !!v[5]; f.life = f.gold ? v[6] : Infinity;
+      return f;
+    });
+    m.ev.forEach(e => {
+      if (e[0] === "c") catchFx(e[1], !!e[2]);
+      else if (e[0] === "w") pops.push({ x: frogs[e[1]].x, y: frogs[e[1]].y - 60, text: "Whiff!", color: "#1d3b34", t0: performance.now() });
+    });
+  } else if (m.t === "end") {
+    state = "over";
+    $("endEmoji").textContent = m.e; $("result").textContent = m.r; $("tally").textContent = m.y;
+    show("end");
+  }
+}
+
+/* ---------- drawing ---------- */
+function ell(x, y, rx, ry, rot, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2); ctx.fill();
+}
+function rr(x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function pad(x, y, r, rot) {
+  ctx.fillStyle = "rgba(0,60,60,0.2)"; ctx.beginPath(); ctx.arc(x + 3, y + 5, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#54b95a"; ctx.strokeStyle = "#3a8f43"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, rot + 0.35, rot + Math.PI * 2 - 0.35); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 2;
+  for (let k = 1; k <= 3; k++) {
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(rot + 0.9 + k * 1.2) * r * 0.75, y + Math.sin(rot + 0.9 + k * 1.2) * r * 0.75); ctx.stroke();
+  }
+}
+
+function drawFrog(fr, t) {
+  const F = FROG[fr.id], sleepy = fr.pauseT > 0;
+  const hop = fr.hopT > 0 ? -Math.sin((1 - fr.hopT / 0.3) * Math.PI) * 8 : 0;
+  pad(fr.x, fr.y + 2, 50, fr.id * 1.7);
+
+  ctx.save();
+  ctx.translate(fr.x, fr.y + hop);
+  ctx.rotate(fr.angle);
+  if (sleepy) ctx.scale(1, 0.95);
+
+  // legs, body, spots
+  ell(-12, -17, 13, 7, -0.5, F.dark); ell(-12, 17, 13, 7, 0.5, F.dark);
+  ell(17, -19, 6, 4, 0.3, F.dark); ell(17, 19, 6, 4, -0.3, F.dark);
+  ell(0, 0, 23, 20, 0, F.body);
+  ctx.globalAlpha = 0.5;
+  ell(-7, -6, 4.5, 3.5, 0, F.dark); ell(-9, 7, 3.5, 3, 0, F.dark); ell(-1, 1, 3, 2.5, 0, F.dark);
+  ctx.globalAlpha = 1;
+
+  // flower on the back
+  for (let k = 0; k < 5; k++) {
+    const a = k * Math.PI * 2 / 5;
+    ell(-8 + Math.cos(a) * 5, Math.sin(a) * 5, 3.6, 3.6, 0, F.color);
+  }
+  ell(-8, 0, 2.8, 2.8, 0, "#ffe066");
+
+  // head and eyes
+  ell(14, 0, 15, 14, 0, F.body);
+  [-11, 11].forEach(y => {
+    ell(14, y, 8, 8, 0, F.body);
+    if (sleepy) {
+      ctx.strokeStyle = "#1d3b34"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(18, y); ctx.stroke();
+    } else {
+      ell(15, y, 6, 6, 0, "#fff"); ell(17, y, 3.2, 3.2, 0, "#1d1d1d"); ell(18, y - 1, 1.1, 1.1, 0, "#fff");
+    }
+  });
+  ctx.strokeStyle = "#1d3b34"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
+  ctx.beginPath();
+  if (sleepy) ctx.arc(22, 0, 3, 0, Math.PI * 2);
+  else ctx.arc(19, 0, 7, -0.95, 0.95);
+  ctx.stroke();
+  ell(26, -3.5, 1, 1, 0, "#1d3b34"); ell(26, 3.5, 1, 1, 0, "#1d3b34");
+  ctx.restore();
+
+  if (sleepy) {
+    ctx.font = "700 20px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#1d3b34";
+    const o = (t / 40) % 30;
+    ctx.globalAlpha = 1 - o / 30; ctx.fillText("z", fr.x + 26, fr.y - 40 - o);
+    ctx.globalAlpha = 1 - ((o + 15) % 30) / 30; ctx.fillText("Z", fr.x + 38, fr.y - 50 - ((o + 15) % 30));
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawFly(f, t) {
+  const sc = Math.min(1, (age - f.born) / 0.3);
+  if (f.gold && f.life < 2 && Math.floor(t / 120) % 2) return;   // blink before it leaves
+  const flap = Math.sin(t / 22 + f.s) * 0.5;
+  ctx.save();
+  ctx.translate(f.x, f.y);
+  ell(4, 9, f.r, f.r * 0.5, 0, "rgba(0,60,80,0.15)");
+  ctx.scale(sc, sc);
+  ctx.rotate(f.a);
+  if (f.gold) { ctx.shadowColor = "#fff3a0"; ctx.shadowBlur = 20; }
+  const wing = f.gold ? "rgba(255,247,190,0.9)" : "rgba(255,255,255,0.75)";
+  ctx.strokeStyle = "rgba(90,140,180,0.6)"; ctx.lineWidth = 1;
+  [-1, 1].forEach(s => {
+    ctx.fillStyle = wing;
+    ctx.beginPath(); ctx.ellipse(-1, s * (f.r * 0.9), f.r * 1.05, f.r * (0.6 + flap * 0.3), s * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  });
+  ell(0, 0, f.r, f.r * 0.7, 0, f.gold ? "#ffc61a" : "#3b3550");
+  ctx.shadowBlur = 0;
+  ell(f.r * 0.8, 0, f.r * 0.6, f.r * 0.6, 0, f.gold ? "#ffe27a" : "#4d4668");
+  ell(f.r * 1.05, -f.r * 0.3, 1.8, 1.8, 0, "#fff"); ell(f.r * 1.05, f.r * 0.3, 1.8, 1.8, 0, "#fff");
+  ctx.restore();
+}
+
+function banner(text, y, size) {
+  ctx.font = "700 " + size + "px Fredoka, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+  ctx.lineWidth = size / 7; ctx.strokeStyle = "#fff"; ctx.strokeText(text, W / 2, y);
+  ctx.fillStyle = "#1d3b34"; ctx.fillText(text, W / 2, y);
+}
+
+function draw(t) {
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  ctx.textBaseline = "alphabetic";
+
+  // grassy bank and pond
+  ctx.fillStyle = "#5aa860"; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#66d6cc"); g.addColorStop(1, "#2f9db3");
+  ctx.fillStyle = g; rr(14, 14, W - 28, H - 28, 46); ctx.fill();
+  ctx.strokeStyle = "#478f4f"; ctx.lineWidth = 5; ctx.stroke();
+
+  // ripples and lily pads
+  ctx.lineWidth = 2;
+  DECOR.forEach(([x, y, r], i) => {
+    const k = ((t / 2400 + i * 0.27) % 1);
+    ctx.strokeStyle = "rgba(255,255,255," + (0.35 * (1 - k)) + ")";
+    ctx.beginPath(); ctx.arc(x, y, r + 6 + k * 30, 0, Math.PI * 2); ctx.stroke();
+    pad(x, y, r, i * 2.1);
+  });
+  ell(300 + 6, 120 - 4, 6, 6, 0, "#ffb3d1"); ell(300 + 6, 120 - 4, 2.5, 2.5, 0, "#ffe066");
+
+  // aim lines
+  if (state !== "over") frogs.forEach(fr => {
+    if (fr.tongue || fr.pauseT > 0) return;
+    const m = mouth(fr, fr.angle), ex = m.x + Math.cos(fr.angle) * REACH, ey = m.y + Math.sin(fr.angle) * REACH;
+    const lg = ctx.createLinearGradient(m.x, m.y, ex, ey);
+    lg.addColorStop(0, "rgba(" + RGB[fr.id] + ",0.85)"); lg.addColorStop(1, "rgba(" + RGB[fr.id] + ",0)");
+    ctx.strokeStyle = lg; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.setLineDash([2, 12]);
+    ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  frogs.forEach(fr => drawFrog(fr, t));
+  flies.forEach(f => drawFly(f, t));
+
+  // tongues
+  frogs.forEach(fr => {
+    const T = fr.tongue;
+    if (!T || T.tx === undefined) return;
+    ctx.strokeStyle = "#ff6f91"; ctx.lineWidth = 8; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(T.mx, T.my); ctx.lineTo(T.tx, T.ty); ctx.stroke();
+    ell(T.tx, T.ty, 7, 7, 0, "#ff8fab");
+  });
+
+  parts.forEach(q => { ctx.globalAlpha = Math.min(q.life * 2.5, 1); ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, Math.PI * 2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+
+  const now = performance.now();
+  pops = pops.filter(p => now - p.t0 < 1000);
+  pops.forEach(p => {
+    const a = Math.max(0, (now - p.t0) / 1000);
+    ctx.globalAlpha = 1 - a * a;
+    ctx.font = "700 28px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 6; ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.strokeText(p.text, p.x, p.y - a * 30);
+    ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y - a * 30);
+  });
+  ctx.globalAlpha = 1;
+
+  if (state === "count") { banner(String(cnt), H / 2, 120); const you = FG.you(FROG.map(f => f.name)); if (you) banner(you, H / 2 + 95, 34); }
+  else if (state === "play" && now - goT < 600) banner("Go!", H / 2, 120);
+  else if (state === "over") banner("Time!", H / 2, 100);
+}
+
+/* ---------- main loop ---------- */
+let last = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000, 0.05); last = t;
+  if (FG.isGuest) guestUpdate(dt); else update(dt);
+  hostSend(dt);
+  for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 200 * dt; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0);
+
+  const s = Math.ceil(Math.max(timeLeft, 0));
+  $("n0").textContent = score[0]; $("n1").textContent = score[1];
+  $("time").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  $("time").classList.toggle("low", state === "play" && timeLeft <= 10);
+
+  draw(t);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- screens ---------- */
+function show(id) { FG.show(id); }
+function start() { $("overlay").classList.add("hidden"); startGame(); }
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+function fit() {
+  const s = $("stage");
+  const size = Math.max(Math.min(s.clientWidth - 16, s.clientHeight - 8), 120);
+  cv.style.width = cv.style.height = size + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+setup();
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

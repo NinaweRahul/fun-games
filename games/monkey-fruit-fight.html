@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monkey Fruit Fight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #fff3c9;
+  --ink: #3b2412;
+  --muted: #7d5a3c;
+  --kiki: #12b5b0;
+  --bobo: #ff6f61;
+  --banana: #ffd93b;
+  --turn: #12b5b0;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); touch-action: none; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Fredoka", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Top bar: hearts and wind */
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px 4px;
+}
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+  opacity: 0.6;
+  transition: opacity 0.2s, background 0.2s;
+}
+.chip.on { opacity: 1; background: #fff; }
+.chip.k0.on { border-color: var(--kiki); }
+.chip.k1.on { border-color: var(--bobo); }
+.dotc { width: 12px; height: 12px; border-radius: 50%; }
+.k0 .dotc { background: var(--kiki); }
+.k1 .dotc { background: var(--bobo); }
+.hp { color: #e53950; letter-spacing: 1px; }
+.hp i { font-style: normal; opacity: 0.25; }
+#wind { font-weight: 700; text-align: center; }
+
+#stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+canvas { display: block; border-radius: 16px; box-shadow: 0 6px 0 rgba(59, 36, 18, 0.18); }
+
+/* Fruit picker */
+#fruits { display: flex; justify-content: center; gap: 12px; padding: 8px 12px 14px; }
+.fruit {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 88px; padding: 8px 10px 6px;
+  background: #fff;
+  border: 3px solid #e8d3a0;
+  border-radius: 16px;
+  font: 600 0.85rem "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+}
+.fruit .em { font-size: 1.8rem; line-height: 1.1; }
+.fruit.sel { border-color: var(--turn); transform: translateY(-3px); box-shadow: 0 4px 0 var(--turn); }
+.fruit:disabled { opacity: 0.35; cursor: default; }
+.ammo {
+  position: absolute; top: -9px; right: -7px;
+  min-width: 22px; height: 22px; padding: 0 2px; box-sizing: border-box;
+  border-radius: 11px; background: #fff; border: 2px solid var(--turn);
+  font: 700 0.8rem/18px "Fredoka", system-ui, sans-serif; text-align: center;
+}
+button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 243, 201, 0.9);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 380px; padding: 24px; }
+.hidden { display: none !important; }
+.hero { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.1rem, 9vw, 3.1rem); }
+h2 { font-size: clamp(1.9rem, 8vw, 2.7rem); }
+.bar { width: 120px; height: 5px; border-radius: 3px; margin: 14px auto 16px; background: linear-gradient(90deg, var(--kiki) 50%, var(--bobo) 50%); }
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.4; font-size: 1.1rem; }
+button.big {
+  display: block; width: 100%; margin: 0 0 14px;
+  padding: 13px 20px;
+  font: 700 1.2rem "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--banana);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+}
+button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+button.big.ghost { background: #fff; }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.45; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--ink); }
+#tally { color: var(--muted); margin: 10px 0 26px; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="chip k0" id="h0"><span class="dotc"></span><span>Kiki</span><span class="hp" id="hp0"></span></div>
+  <div id="wind"></div>
+  <div class="chip k1" id="h1"><span class="dotc"></span><span>Bobo</span><span class="hp" id="hp1"></span></div>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="fruits">
+  <button class="fruit" data-f="banana"><span class="em">🍌</span><span>Banana</span><span class="ammo"></span></button>
+  <button class="fruit" data-f="coconut"><span class="em">🥥</span><span>Coconut</span><span class="ammo"></span></button>
+  <button class="fruit" data-f="berries"><span class="em">🍇</span><span>Berries</span><span class="ammo"></span></button>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <div class="hero">🐵🍌🐵</div>
+    <h1>Monkey Fruit Fight</h1>
+    <div class="bar"></div>
+    <p class="sub">Two monkeys. One jungle. Lots of flying fruit.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p><b>Drag anywhere</b> to pull back like a slingshot, then let go to throw. The farther you pull, the harder the throw. Dots show the start of the arc.</p>
+      <p><b>Pick a fruit</b> below the board. Banana is your all-rounder and never runs out. Coconut has a big blast but shorter range (2 each). Berries split into three at the top of the arc (2 each).</p>
+      <p>The <b>wind</b> pushes fruit sideways. Every hit costs a heart, even on your own monkey. Fruit also blows craters in the ground, so the hills change as you play.</p>
+      <p>Lose all 3 hearts and you lose. Kiki (teal) goes first, then Bobo (coral). Playing on one screen? Pass the device back and forth.</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <div class="hero" id="endEmoji">🏆</div>
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const W = 800, H = 500;                 // logical board size
+const G = 700, WINDK = 140, VMAX = 800, MAXDRAG = 110, HP = 3;
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+
+const FRUITS = {
+  banana:  { em: "🍌", rad: 30, pm: 1,   wf: 1,    size: 28, juice: ["#ffe14d", "#fff3a3"] },
+  coconut: { em: "🥥", rad: 46, pm: 0.9, wf: 0.35, size: 32, juice: ["#ffffff", "#8a5a30"] },
+  berries: { em: "🍇", rad: 22, pm: 1,   wf: 1.2,  size: 24, juice: ["#8f4bff", "#c9a0ff"] }
+};
+const MON = [
+  { name: "Kiki", color: "#12b5b0", x: 90,     face: 1 },
+  { name: "Bobo", color: "#ff6f61", x: W - 90, face: -1 }
+];
+
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = W * 2; cv.height = H * 2;
+
+let h, mk, proj, parts, pops, ammo;
+let turn = 0, wind = 0, sel = "banana", state = "menu", shake = 0, drag = null;
+const score = [0, 0];
+
+/* ---------- setup ---------- */
+function genTerrain() {
+  h = new Float32Array(W);
+  const p = [Math.random() * 6, Math.random() * 6, Math.random() * 6];
+  const bump = 70 + Math.random() * 60, bx = W / 2 + (Math.random() - 0.5) * 120;
+  for (let x = 0; x < W; x++) {
+    let y = H * 0.66 + Math.sin(x * 0.012 + p[0]) * 30 + Math.sin(x * 0.029 + p[1]) * 16 + Math.sin(x * 0.005 + p[2]) * 26;
+    y -= bump * Math.exp(-Math.pow((x - bx) / 95, 2));
+    h[x] = y;
+  }
+  // flat spots for the monkeys
+  for (const m of MON) {
+    const t = h[m.x];
+    for (let x = m.x - 50; x <= m.x + 50; x++) {
+      if (x < 0 || x >= W) continue;
+      const w = Math.max(0, 1 - Math.abs(x - m.x) / 50), s = w * w * (3 - 2 * w);
+      h[x] = h[x] * (1 - s) + t * s;
+    }
+  }
+  for (let x = 0; x < W; x++) h[x] = Math.min(Math.max(h[x], H * 0.3), H - 40);
+}
+
+function reset(pl) {
+  if (pl && pl.h) h = Float32Array.from(pl.h); else genTerrain();
+  mk = MON.map((m, i) => ({ ...m, id: i, hp: HP, y: h[m.x], st: "idle", stT: 0, throwT: 0 }));
+  proj = []; parts = []; pops = []; shake = 0; drag = null; turn = 0;
+  ammo = [0, 1].map(() => ({ banana: Infinity, coconut: 2, berries: 2 }));
+  newTurn(pl && pl.wind);
+}
+
+function newTurn(w) {
+  wind = w !== undefined ? w : Math.round((Math.random() * 2 - 1) * 10) / 10;
+  sel = "banana";
+  state = "aim";
+  updateHud(); updateFruits();
+  if (FG.ai(turn)) setTimeout(aiThrow, 1000 + Math.random() * 800);
+}
+
+function updateHud() {
+  mk.forEach((m, i) => {
+    const hp = Math.max(m.hp, 0);
+    $("hp" + i).innerHTML = "♥".repeat(hp) + "<i>" + "♥".repeat(HP - hp) + "</i>";
+    $("h" + i).classList.toggle("on", state !== "over" && turn === i);
+  });
+  const n = Math.round(Math.abs(wind) * 10);
+  $("wind").textContent = "Wind " + (n ? (wind < 0 ? "← " : "→ ") + n : "calm");
+}
+
+function updateFruits() {
+  $("fruits").style.setProperty("--turn", MON[turn].color);
+  document.querySelectorAll(".fruit").forEach(b => {
+    const a = ammo[turn][b.dataset.f];
+    b.querySelector(".ammo").textContent = a === Infinity ? "∞" : a;
+    b.disabled = a <= 0 || !FG.mine(turn);
+    b.classList.toggle("sel", b.dataset.f === sel);
+  });
+}
+
+document.querySelectorAll(".fruit").forEach(b => {
+  b.onclick = () => {
+    if (state === "aim" && FG.mine(turn) && ammo[turn][b.dataset.f] > 0) { sel = b.dataset.f; updateFruits(); }
+  };
+});
+
+/* ---------- aiming ---------- */
+const scale = () => cv.getBoundingClientRect().width / W;
+const hand = m => ({ x: m.x + m.face * 16, y: m.y - 56 });
+
+function calc() {
+  if (!drag) return null;
+  const s = scale();
+  const dx = (drag.cx - drag.sx) / s, dy = (drag.cy - drag.sy) / s;
+  const L = Math.hypot(dx, dy);
+  if (L < 6) return null;
+  const power = Math.min(L / MAXDRAG, 1), v = power * VMAX * FRUITS[sel].pm;
+  return { vx: -dx / L * v, vy: -dy / L * v, power };
+}
+
+addEventListener("pointerdown", e => {
+  if (state !== "aim" || drag || !FG.mine(turn) || e.target.closest("button")) return;
+  drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY };
+});
+addEventListener("pointermove", e => {
+  if (drag && e.pointerId === drag.id) { drag.cx = e.clientX; drag.cy = e.clientY; }
+});
+addEventListener("pointerup", e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const c = calc(); drag = null;
+  if (c && state === "aim") throwFruit(c);
+});
+addEventListener("pointercancel", () => { drag = null; });
+
+function throwFruit(c, from) {
+  const m = mk[turn], f = FRUITS[sel], hd = from ? { x: from.x, y: from.y } : hand(m);
+  if (FG.online && !from) FG.send({ t: "th", f: sel, vx: c.vx, vy: c.vy, x: hd.x, y: hd.y });
+  if (ammo[turn][sel] !== Infinity) ammo[turn][sel]--;
+  proj.push({
+    x: hd.x, y: hd.y, vx: c.vx, vy: c.vy, f: sel, rad: f.rad, wf: f.wf, size: f.size,
+    rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 4),
+    age: 0, child: false, th: { by: turn, hit: new Set() }
+  });
+  m.throwT = 0.3;
+  state = "fly";
+}
+
+/* ---------- physics ---------- */
+function stepProj(dt) {
+  for (let i = proj.length - 1; i >= 0; i--) {
+    const p = proj[i], pvy = p.vy;
+    p.vx += wind * WINDK * p.wf * dt;
+    p.vy += G * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.rot += p.spin * dt; p.age += dt;
+
+    // berries split into three at the top of the arc
+    if (p.f === "berries" && !p.child && pvy < 0 && p.vy >= 0) {
+      p.child = true; p.size = 20; p.rad = 22;
+      for (const d of [-90, 90]) proj.push({ ...p, vx: p.vx + d, rot: Math.random() * 6, spin: p.spin * (0.5 + Math.random()) });
+    }
+
+    if (p.x < -40 || p.x > W + 40 || p.y > H + 40) { proj.splice(i, 1); continue; }
+
+    let hit = false;
+    const xi = Math.floor(p.x);
+    if (xi >= 0 && xi < W && p.y >= h[xi]) hit = true;
+    else for (const m of mk) {
+      if ((m.id !== p.th.by || p.age > 0.3) && Math.hypot(p.x - m.x, p.y - (m.y - 22)) < 26) { hit = true; break; }
+    }
+    if (hit) { proj.splice(i, 1); boom(p); }
+  }
+}
+
+function boom(p) {
+  const f = FRUITS[p.f], r = p.rad, x = p.x, y = p.y;
+  const xi = Math.min(Math.max(Math.floor(x), 0), W - 1);
+  const cy = Math.min(y, h[xi]);
+
+  // carve a crater
+  for (let i = Math.max(0, Math.floor(x - r)); i <= Math.min(W - 1, Math.ceil(x + r)); i++) {
+    const dx = i - x, dy = Math.sqrt(Math.max(0, r * r - dx * dx));
+    if (cy + dy > h[i]) h[i] = Math.min(cy + dy, H - 6);
+  }
+
+  // juice
+  for (let i = 0; i < 16; i++) {
+    const a = -Math.PI * Math.random(), s = 60 + Math.random() * 200;
+    parts.push({ x, y: cy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5 + Math.random() * 0.4, size: 3 + Math.random() * 3, color: f.juice[i % 2] });
+  }
+  shake = Math.min(shake + r / 6, 8);
+
+  // damage (each monkey can lose at most one heart per throw)
+  let hurt = false;
+  for (const m of mk) {
+    if (p.th.hit.has(m.id)) continue;
+    if (Math.hypot(x - m.x, y - (m.y - 22)) < r + 14) {
+      p.th.hit.add(m.id); m.hp--; hurt = true;
+      m.st = "dizzy"; m.stT = performance.now() + 1400;
+      pops.push({ x: m.x, y: m.y - 70, text: "Bonk!", color: "#e4572e", t0: performance.now() });
+    }
+  }
+  if (!hurt && !p.child) pops.push({ x, y: cy - 16, text: "Splat!", color: "#3b2412", t0: performance.now() });
+  updateHud();
+}
+
+function endTurn() {
+  if (FG.isGuest) return;   // the host decides when a turn is over
+  const dead = mk.map(m => m.hp <= 0);
+  if (dead[0] || dead[1]) { syncNet(dead); finish(dead); return; }
+  turn = 1 - turn;
+  newTurn();
+  syncNet();
+}
+
+// Online: both screens fly the same fruit, and the host corrects the guest after every turn
+function syncNet(dead) {
+  if (!FG.isHost) return;
+  FG.send({ t: "nt", turn, wind, hp: mk.map(k => k.hp), ammo: ammo.map(a => [a.coconut, a.berries]),
+            h: packTerrain(), dead: dead || [false, false] });
+}
+
+// Round the terrain to 0.1 px on the host too, so both screens hold exactly the same ground
+function packTerrain() {
+  const r = Array.from(h, v => Math.round(v * 10) / 10);
+  h = Float32Array.from(r);
+  return r;
+}
+
+function onNet(m) {
+  if (m.t === "th") {
+    if (state !== "aim" || turn !== 1 - FG.role) return;
+    sel = m.f;
+    throwFruit({ vx: m.vx, vy: m.vy }, m);
+  } else if (m.t === "nt" && FG.isGuest) {
+    proj = [];
+    h = Float32Array.from(m.h);
+    mk.forEach((k, i) => { k.hp = m.hp[i]; });
+    ammo = m.ammo.map(a => ({ banana: Infinity, coconut: a[0], berries: a[1] }));
+    turn = m.turn;
+    if (m.dead[0] || m.dead[1]) finish(m.dead); else newTurn(m.wind);
+  }
+}
+
+/* ---------- computer opponent ---------- */
+// Try lots of angles and powers on a copy of the physics and keep the shot that lands closest
+function simShot(f, vx, vy, ox, oy, shooter) {
+  const F = FRUITS[f], dt = 1 / 120;
+  let x = ox, y = oy, age = 0;
+  for (let i = 0; i < 2400; i++) {
+    vx += wind * WINDK * F.wf * dt; vy += G * dt;
+    x += vx * dt; y += vy * dt; age += dt;
+    if (x < -40 || x > W + 40 || y > H + 40) return null;
+    const xi = Math.floor(x);
+    if (xi >= 0 && xi < W && y >= h[xi]) return { x, y };
+    for (const m of mk) if ((m.id !== shooter || age > 0.3) && Math.hypot(x - m.x, y - (m.y - 22)) < 26) return { x, y };
+  }
+  return null;
+}
+
+function aiThrow() {
+  if (state !== "aim" || !FG.ai(turn)) return;
+  const me = mk[turn], foe = mk[1 - turn], hd = hand(me), dir = foe.x > me.x ? 1 : -1;
+  const target = { x: foe.x, y: foe.y - 22 };
+  const kinds = ["banana"];
+  if (FG.level !== "easy") { if (ammo[turn].coconut > 0) kinds.push("coconut"); if (ammo[turn].berries > 0) kinds.push("berries"); }
+  let best = null;
+  for (const f of kinds) {
+    const F = FRUITS[f];
+    for (let deg = 10; deg <= 85; deg += 1.5) {
+      for (let pw = 0.25; pw <= 1.0001; pw += 0.025) {
+        const a = deg * Math.PI / 180, v = pw * VMAX * F.pm;
+        const r = simShot(f, Math.cos(a) * dir * v, -Math.sin(a) * v, hd.x, hd.y, turn);
+        if (!r) continue;
+        const d = Math.hypot(r.x - target.x, r.y - target.y) - F.rad * 0.5 - (f === "banana" ? 6 : 0);
+        if (!best || d < best.d) best = { d, f, a, pw };
+      }
+    }
+  }
+  if (!best) { best = { f: "banana", a: 0.9, pw: 0.7 }; }
+  const aErr = FG.pick(0.10, 0.045, 0.012), pErr = FG.pick(0.14, 0.06, 0.015);
+  const a = best.a + (Math.random() - 0.5) * 2 * aErr;
+  const pw = Math.min(1, best.pw * (1 + (Math.random() - 0.5) * 2 * pErr));
+  sel = best.f;
+  updateFruits();
+  const v = pw * VMAX * FRUITS[sel].pm;
+  throwFruit({ vx: Math.cos(a) * dir * v, vy: -Math.sin(a) * v });
+}
+
+function finish(dead) {
+  state = "over";
+  const w = dead[0] && !dead[1] ? 1 : dead[1] && !dead[0] ? 0 : -1;
+  if (w >= 0) {
+    score[w]++;
+    mk[w].st = "happy"; mk[w].stT = Infinity;
+    mk[1 - w].st = "dizzy"; mk[1 - w].stT = Infinity;
+  }
+  updateHud();
+  setTimeout(() => {
+    $("endEmoji").textContent = w < 0 ? "🤝" : "🏆";
+    $("result").textContent = w < 0 ? "It's a draw" : MON[w].name + " wins!";
+    $("tally").textContent = "Kiki " + score[0] + "  |  Bobo " + score[1];
+    show("end");
+  }, 1400);
+}
+
+/* ---------- drawing ---------- */
+function circle(x, y, r, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+function emoji(ch, x, y, size, rot) {
+  ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
+  ctx.font = size + "px " + EMOJI_FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(ch, 0, 0); ctx.restore();
+}
+function cloud(x, y, s) {
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  [[0, 0, 22], [24, -8, 26], [52, 0, 20], [26, 6, 22]].forEach(([dx, dy, r]) => {
+    ctx.beginPath(); ctx.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
+function monkey(m, t, active) {
+  const f = m.face, x = m.x, y = m.y;
+  const dizzy = m.st === "dizzy" && t < m.stT, happy = m.st === "happy";
+  const bob = Math.sin(t / 300 + m.id * 2) * 1.5;
+  const hop = happy ? -Math.abs(Math.sin(t / 180)) * 14 : 0;
+  const fur = "#8b5a2b", skin = "#f4d6a8", dark = "#3b2412";
+  const aiming = state === "aim" && active && !dizzy;
+  const armUp = aiming || m.throwT > 0 || happy;
+
+  ctx.save(); ctx.translate(0, hop); ctx.lineCap = "round";
+
+  // tail, feet, body, belly
+  ctx.strokeStyle = fur; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(x - f * 12, y - 8); ctx.quadraticCurveTo(x - f * 36, y - 4, x - f * 28, y - 32); ctx.stroke();
+  ctx.fillStyle = fur;
+  [-8, 8].forEach(dx => { ctx.beginPath(); ctx.ellipse(x + dx, y - 2, 8, 4, 0, 0, Math.PI * 2); ctx.fill(); });
+  circle(x, y - 16, 15, fur);
+  circle(x + f * 2, y - 14, 9, skin);
+
+  // arms
+  ctx.strokeStyle = fur; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(x - f * 11, y - 20); ctx.lineTo(x - f * 15, y - 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + f * 10, y - 24);
+  if (armUp) ctx.lineTo(x + f * 16, y - 52); else ctx.lineTo(x + f * 15, y - 8);
+  ctx.stroke();
+  if (aiming && m.throwT <= 0) emoji(FRUITS[sel].em, x + f * 16, y - 58, 26);
+
+  // head
+  const hy = y - 38 + bob;
+  circle(x - 13, hy, 6, fur); circle(x + 13, hy, 6, fur);
+  circle(x - 13, hy, 3, skin); circle(x + 13, hy, 3, skin);
+  circle(x, hy, 14, fur);
+  ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(x + f * 2, hy + 3, 10, 9, 0, 0, Math.PI * 2); ctx.fill();
+
+  // eyes
+  const ex = [x + f * 2 - 4.5, x + f * 2 + 4.5];
+  ctx.strokeStyle = dark; ctx.lineWidth = 1.6;
+  ex.forEach(e => {
+    if (dizzy) {
+      ctx.beginPath(); ctx.moveTo(e - 2.5, hy - 2.5); ctx.lineTo(e + 2.5, hy + 2.5);
+      ctx.moveTo(e + 2.5, hy - 2.5); ctx.lineTo(e - 2.5, hy + 2.5); ctx.stroke();
+    } else if (happy) {
+      ctx.beginPath(); ctx.arc(e, hy, 2.6, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+    } else circle(e, hy, 2.3, dark);
+  });
+  ctx.globalAlpha = 0.5;
+  circle(ex[0] - 2, hy + 6, 2.6, "#ff8fa3"); circle(ex[1] + 2, hy + 6, 2.6, "#ff8fa3");
+  ctx.globalAlpha = 1;
+
+  // mouth
+  ctx.strokeStyle = dark; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (dizzy) ctx.arc(x + f * 2, hy + 8, 2, 0, Math.PI * 2);
+  else ctx.arc(x + f * 2, hy + 6, happy ? 4 : 3, 0.1 * Math.PI, 0.9 * Math.PI);
+  ctx.stroke();
+
+  // bandana
+  ctx.strokeStyle = m.color; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(x, hy, 13.5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+  circle(x - f * 13, hy - 5, 3.5, m.color);
+  ctx.fillStyle = m.color;
+  ctx.beginPath(); ctx.moveTo(x - f * 14, hy - 5); ctx.lineTo(x - f * 22, hy - 10); ctx.lineTo(x - f * 20, hy - 1); ctx.fill();
+
+  // dizzy stars
+  if (dizzy) for (let i = 0; i < 3; i++) {
+    const a = t / 150 + i * 2.1;
+    circle(x + Math.cos(a) * 18, hy - 16 + Math.sin(a) * 5, 3, "#ffd93b");
+  }
+  ctx.restore();
+
+  // turn marker
+  if (aiming) {
+    const by = y - 84 + Math.sin(t / 200) * 3;
+    ctx.fillStyle = m.color;
+    ctx.beginPath(); ctx.moveTo(x - 8, by); ctx.lineTo(x + 8, by); ctx.lineTo(x, by + 10); ctx.fill();
+  }
+  if (FG.human() === m.id) {
+    ctx.font = "700 13px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = m.color;
+    ctx.fillText("YOU", x, y - 96);
+  }
+}
+
+function preview() {
+  const c = calc(); if (!c) return;
+  const f = FRUITS[sel], hd = hand(mk[turn]);
+  let x = hd.x, y = hd.y, vx = c.vx, vy = c.vy;
+  ctx.fillStyle = "rgba(255,255,255,0.95)"; ctx.strokeStyle = "rgba(59,36,18,0.6)"; ctx.lineWidth = 1.5;
+  for (let i = 1; i <= 45; i++) {
+    vx += wind * WINDK * f.wf * 0.012; vy += G * 0.012;
+    x += vx * 0.012; y += vy * 0.012;
+    if (i % 5 === 0) { ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    if (x < 0 || x > W || y > h[Math.floor(x)]) break;
+  }
+  ctx.font = "700 16px Fredoka, sans-serif"; ctx.textAlign = "center";
+  ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.fillStyle = "#3b2412";
+  const label = Math.round(c.power * 100) + "%";
+  ctx.strokeText(label, hd.x, hd.y - 30); ctx.fillText(label, hd.x, hd.y - 30);
+}
+
+function draw(t) {
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  if (shake > 0.2) ctx.translate((Math.random() - 0.5) * shake * 2, (Math.random() - 0.5) * shake * 2);
+
+  // sky, sun, clouds, far hills
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#8fd6ff"); g.addColorStop(0.7, "#d7f1ff"); g.addColorStop(1, "#fff3c9");
+  ctx.fillStyle = g; ctx.fillRect(-12, -12, W + 24, H + 24);
+  ctx.save(); ctx.shadowColor = "#ffe066"; ctx.shadowBlur = 40; circle(W - 110, 80, 38, "#ffe066"); ctx.restore();
+  cloud(((120 + t * 0.006) % (W + 200)) - 100, 70, 1);
+  cloud(((470 + t * 0.004) % (W + 200)) - 100, 130, 0.8);
+  [["#b4e5ab", 0.5, 1], ["#96d68e", 0.6, 2.4]].forEach(([col, k, ph]) => {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, H * k + Math.sin(x * 0.008 + ph) * 34);
+    ctx.lineTo(W, H); ctx.fill();
+  });
+
+  // ground
+  const dg = ctx.createLinearGradient(0, H * 0.4, 0, H);
+  dg.addColorStop(0, "#b07a45"); dg.addColorStop(1, "#7a4f2b");
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x < W; x += 2) ctx.lineTo(x, h[x]);
+  ctx.lineTo(W, h[W - 1]); ctx.lineTo(W, H); ctx.closePath();
+  ctx.fillStyle = dg; ctx.fill();
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(0, h[0]);
+  for (let x = 0; x < W; x += 2) ctx.lineTo(x, h[x]);
+  ctx.strokeStyle = "#4fc35b"; ctx.lineWidth = 9; ctx.stroke();
+  ctx.strokeStyle = "#7be07f"; ctx.lineWidth = 3; ctx.translate(0, -2); ctx.stroke(); ctx.translate(0, 2);
+
+  mk.forEach((m, i) => monkey(m, t, turn === i));
+
+  // fruit in flight
+  ctx.fillStyle = "#000";
+  proj.forEach(p => emoji(FRUITS[p.f].em, p.x, p.y, p.size, p.rot));
+
+  // juice
+  parts.forEach(q => { ctx.globalAlpha = Math.min(q.life * 2, 1); circle(q.x, q.y, q.size, q.color); });
+  ctx.globalAlpha = 1;
+
+  // popups
+  const now = performance.now();
+  pops = pops.filter(p => now - p.t0 < 1000);
+  pops.forEach(p => {
+    const age = Math.max(0, (now - p.t0) / 1000);
+    ctx.globalAlpha = 1 - age * age;
+    ctx.font = "700 24px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.lineWidth = 5; ctx.strokeStyle = "#fff";
+    ctx.strokeText(p.text, p.x, p.y - age * 30);
+    ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y - age * 30);
+  });
+  ctx.globalAlpha = 1;
+
+  if (state === "aim") preview();
+}
+
+/* ---------- main loop ---------- */
+let last = 0, acc = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000, 0.05); last = t;
+  acc += dt;
+  while (acc >= 1 / 120) { acc -= 1 / 120; if (proj.length) stepProj(1 / 120); }
+
+  if (state === "fly" && !proj.length) { state = "settle"; setTimeout(endTurn, 750); }
+
+  for (const q of parts) { q.vy += 520 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0 && q.x > 0 && q.x < W && q.y < h[Math.floor(q.x)] + 2);
+  for (const m of mk) {
+    m.y += (h[m.x] - m.y) * Math.min(1, dt * 10);   // slide down into craters
+    if (m.throwT > 0) m.throwT -= dt;
+  }
+  shake = Math.max(0, shake - dt * 20);
+
+  draw(t);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- screens ---------- */
+function show(id) { FG.show(id); }
+function start(pl) {
+  reset(pl);
+  $("overlay").classList.add("hidden");
+  return FG.isHost ? { h: packTerrain(), wind } : undefined;
+}
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+function fit() {
+  const s = $("stage");
+  const w = Math.max(Math.min(s.clientWidth - 16, (s.clientHeight - 8) * W / H), 120);
+  cv.style.width = w + "px"; cv.style.height = (w * H / W) + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+reset();
+state = "menu";
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

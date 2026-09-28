@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Light Cycle Duel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #05070d;
+  --p1: #19f0ff;
+  --p2: #ff8a1f;
+  --text: #e8f1ff;
+  --muted: #8a9cbd;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Chakra Petch", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+canvas { display: block; background: var(--bg); }
+
+/* On-screen controls (touch / small screens) */
+#pads {
+  display: none;
+  justify-content: space-between;
+  padding: 6px 18px 14px;
+}
+@media (pointer: coarse), (max-width: 700px) {
+  #pads { display: flex; }
+}
+.grp { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.grp span { font-size: 0.8rem; color: var(--muted); }
+.stick {
+  position: relative;
+  width: 132px; height: 132px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: rgba(255, 255, 255, 0.04);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.stick::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: currentColor; opacity: 0.45;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8L42 21H58ZM50 92L42 79H58ZM8 50L21 42V58ZM92 50L79 42V58Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8L42 21H58ZM50 92L42 79H58ZM8 50L21 42V58ZM92 50L79 42V58Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+.knob {
+  position: absolute; left: 50%; top: 50%;
+  width: 58px; height: 58px; margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 18px currentColor;
+  transition: transform 0.12s;
+  pointer-events: none;
+}
+.c1 { color: var(--p1); }
+.c2 { color: var(--p2); }
+
+/* Solo and online: only your own joystick, centered */
+body.fg-solo .grp { display: none; }
+body.fg-solo.fg-me-0 .grp.c1, body.fg-solo.fg-me-1 .grp.c2 { display: flex; }
+body.fg-solo #pads { justify-content: center; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(5, 7, 13, 0.82);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 360px; padding: 24px; }
+.hidden { display: none !important; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.1rem, 9vw, 3.3rem); text-shadow: 0 0 20px rgba(25, 240, 255, 0.45); }
+h2 { font-size: clamp(1.8rem, 8vw, 2.6rem); }
+.bar {
+  width: 120px; height: 3px; margin: 14px auto 16px;
+  background: linear-gradient(90deg, var(--p1) 50%, var(--p2) 50%);
+}
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.45; }
+button.big {
+  display: block; width: 100%; margin: 0 0 12px;
+  padding: 14px 20px;
+  font: 700 1.1rem "Chakra Petch", system-ui, sans-serif;
+  color: var(--text);
+  background: transparent;
+  border: 2px solid var(--p1);
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.big:hover { background: rgba(25, 240, 255, 0.12); box-shadow: 0 0 16px rgba(25, 240, 255, 0.35); }
+button.big.ghost { border-color: var(--muted); }
+button.big.ghost:hover { background: rgba(138, 156, 189, 0.12); box-shadow: none; }
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.5; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--text); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+#tally { color: var(--muted); margin: 10px 0 26px; }
+</style>
+</head>
+<body>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="pads">
+  <div class="grp c2">
+    <span>Orange</span>
+    <div class="stick" data-p="1"><div class="knob"></div></div>
+  </div>
+  <div class="grp c1">
+    <span>Cyan</span>
+    <div class="stick" data-p="0"><div class="knob"></div></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <h1>Light Cycle Duel</h1>
+    <div class="bar"></div>
+    <p class="sub">Two bikes, one arena. Last rider standing wins.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p>Your bike never stops and can't reverse. Steer it around the arena. Hitting a wall or any light trail blows you up, and the other player wins. The bikes get faster over time.</p>
+      <p><span class="dot" style="background:var(--p1)"></span><b>Player 1, cyan:</b> Left and Right arrow keys</p>
+      <p><span class="dot" style="background:var(--p2)"></span><b>Player 2, orange:</b> A and D keys</p>
+      <p>On a phone, use the joysticks at the bottom: orange on the left, cyan on the right. Push a stick up, down, left or right to head that way. Pushing straight back the way you came does nothing.</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const N = 50, C = 12, W = N * C;            // grid cells, pixels per cell, canvas size
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // up, right, down, left (clockwise)
+const COLORS = ["#19f0ff", "#ff8a1f"];
+const NAMES = ["Cyan", "Orange"];
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = cv.height = W;
+
+let grid, bikes, particles, state = "menu", interval, acc = 0, last = 0, count = 0;
+const score = [0, 0];
+
+function reset() {
+  grid = new Uint8Array(N * N);
+  bikes = [
+    { x: 8,  y: 25, d: 1, turn: 0, want: null, dead: false, path: [[8, 25]] },
+    { x: 41, y: 25, d: 3, turn: 0, want: null, dead: false, path: [[41, 25]] }
+  ];
+  bikes.forEach((b, i) => grid[b.y * N + b.x] = i + 1);
+  particles = [];
+  interval = 130; // ms per step, shrinks over time
+  acc = 0;
+}
+
+function step() {
+  if (FG.mode === "cpu") aiSteer(1);
+  // apply queued turns, then work out where each bike goes next
+  const next = bikes.map(b => {
+    let nd = b.d;
+    if (b.want !== null && (b.want + 2) % 4 !== b.d) nd = b.want; // joystick, no U-turns
+    else if (b.turn) nd = (b.d + (b.turn > 0 ? 1 : 3)) % 4;      // keyboard
+    if (nd !== b.d) { b.d = nd; b.path.push([b.x, b.y]); }
+    b.turn = 0;
+    return [b.x + DIRS[b.d][0], b.y + DIRS[b.d][1]];
+  });
+  const sameCell = next[0][0] === next[1][0] && next[0][1] === next[1][1];
+  const dead = next.map(([x, y]) =>
+    sameCell || x < 0 || y < 0 || x >= N || y >= N || grid[y * N + x] !== 0);
+
+  next.forEach(([x, y], i) => {
+    if (dead[i]) return;
+    bikes[i].x = x; bikes[i].y = y;
+    grid[y * N + x] = i + 1;
+  });
+
+  if (FG.isHost) FG.send({ t: "tk", b: bikes.map(b => [b.x, b.y, b.d]), dead: dead.map(Number) });
+  if (dead[0] || dead[1]) endRound(dead);
+}
+
+// Computer opponent: look at the open space each move would leave and pick the roomiest one
+function room(x, y, cap) {
+  if (x < 0 || y < 0 || x >= N || y >= N || grid[y * N + x]) return 0;
+  const seen = new Set([y * N + x]), queue = [[x, y]];
+  let n = 0;
+  while (queue.length && n < cap) {
+    const [cx, cy] = queue.shift();
+    n++;
+    for (const [dx, dy] of DIRS) {
+      const nx = cx + dx, ny = cy + dy, k = ny * N + nx;
+      if (nx < 0 || ny < 0 || nx >= N || ny >= N || grid[k] || seen.has(k)) continue;
+      seen.add(k); queue.push([nx, ny]);
+    }
+  }
+  return n;
+}
+
+function aiSteer(i) {
+  const b = bikes[i], o = bikes[1 - i];
+  const cap = FG.pick(30, 120, 400), noise = FG.pick(cap * 0.5, cap * 0.1, 3);
+  const ox = o.x + DIRS[o.d][0], oy = o.y + DIRS[o.d][1];
+  let best = null;
+  for (const t of [0, -1, 1]) {
+    const d = (b.d + (t > 0 ? 1 : t < 0 ? 3 : 0)) % 4;
+    const nx = b.x + DIRS[d][0], ny = b.y + DIRS[d][1];
+    let s = room(nx, ny, cap);
+    if (nx === ox && ny === oy) s -= cap;   // avoid a head-on crash
+    if (t === 0) s += cap * 0.2;            // keep going straight when it is safe
+    s += Math.random() * noise;
+    if (!best || s > best.s) best = { t, s };
+  }
+  b.turn = best.t;
+}
+
+// Online: the host runs the game and sends every move; the guest only draws and sends steering
+function onNet(m) {
+  if (FG.isHost && m.t === "turn") bikes[1].turn = m.v;
+  else if (FG.isHost && m.t === "want") bikes[1].want = m.d;
+  else if (FG.isGuest && m.t === "tk" && bikes) {
+    if (state === "count") state = "play";
+    if (state !== "play") return;
+    m.b.forEach((v, i) => {
+      const b = bikes[i];
+      if (v[2] !== b.d) { b.d = v[2]; b.path.push([b.x, b.y]); }
+      if (!m.dead[i]) { b.x = v[0]; b.y = v[1]; grid[b.y * N + b.x] = i + 1; }
+    });
+    if (m.dead[0] || m.dead[1]) endRound(m.dead.map(Boolean));
+  }
+}
+
+function endRound(dead) {
+  state = "over";
+  dead.forEach((d, i) => { if (d) { bikes[i].dead = true; explode(bikes[i], COLORS[i]); } });
+  const winner = dead[0] && dead[1] ? -1 : dead[0] ? 1 : 0;
+  if (winner >= 0) score[winner]++;
+  setTimeout(() => {
+    const r = $("result");
+    r.textContent = winner < 0 ? "Draw" : NAMES[winner] + " wins";
+    r.style.color = winner < 0 ? "#e8f1ff" : COLORS[winner];
+    $("tally").textContent = "Cyan " + score[0] + "  |  Orange " + score[1];
+    show("end");
+  }, 1100);
+}
+
+function explode(b, color) {
+  for (let i = 0; i < 60; i++) {
+    const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 260;
+    particles.push({
+      x: b.x * C + C / 2, y: b.y * C + C / 2,
+      vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      life: 0.5 + Math.random() * 0.6, color: i % 4 ? color : "#fff"
+    });
+  }
+}
+
+function draw() {
+  ctx.fillStyle = "#05070d";
+  ctx.fillRect(0, 0, W, W);
+
+  // grid lines
+  ctx.strokeStyle = "#101c33";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < N; i++) {
+    ctx.moveTo(i * C, 0); ctx.lineTo(i * C, W);
+    ctx.moveTo(0, i * C); ctx.lineTo(W, i * C);
+  }
+  ctx.stroke();
+
+  // walls
+  ctx.strokeStyle = "#5b7bb5";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, W - 4, W - 4);
+
+  // trails and bike heads
+  bikes.forEach((b, i) => {
+    ctx.save();
+    ctx.strokeStyle = ctx.shadowColor = COLORS[i];
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = C * 0.55;
+    ctx.lineCap = "square";
+    ctx.beginPath();
+    b.path.forEach(([x, y], k) => {
+      const px = x * C + C / 2, py = y * C + C / 2;
+      k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    });
+    ctx.lineTo(b.x * C + C / 2, b.y * C + C / 2);
+    ctx.stroke();
+    if (!b.dead) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(b.x * C + 2, b.y * C + 2, C - 4, C - 4);
+    }
+    ctx.restore();
+  });
+
+  // explosion sparks
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(p.life, 0);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+  });
+  ctx.globalAlpha = 1;
+
+  // countdown
+  if (state === "count") {
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 140px 'Chakra Petch', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(count, W / 2, W / 2);
+    const you = FG.you(NAMES);
+    if (you) {
+      ctx.font = "700 28px 'Chakra Petch', sans-serif";
+      ctx.fillStyle = COLORS[FG.human()];
+      ctx.fillText(you, W / 2, W / 2 + 100);
+    }
+  }
+}
+
+function loop(t) {
+  const dt = Math.min(t - last, 50);
+  last = t;
+  if (state === "play" && !FG.isGuest) {
+    acc += dt;
+    while (acc >= interval && state === "play") {
+      acc -= interval;
+      step();
+      interval = Math.max(55, interval * 0.9985); // slow speed-up
+    }
+  }
+  particles.forEach(p => { p.x += p.vx * dt / 1000; p.y += p.vy * dt / 1000; p.life -= dt / 1000; });
+  particles = particles.filter(p => p.life > 0);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function show(id) { FG.show(id); }
+
+function start() {
+  $("overlay").classList.add("hidden");
+  reset();
+  state = "count";
+  count = 3;
+  const timer = setInterval(() => {
+    count--;
+    if (count <= 0) { clearInterval(timer); if (state === "count") { state = "play"; acc = 0; } }
+  }, 700);
+}
+
+function turn(p, t) {
+  if (state !== "play") return;
+  if (FG.isGuest) FG.send({ t: "turn", v: t }); else bikes[p].turn = t;
+}
+let lastWant = null;
+function setWant(p, d) {
+  if (FG.isGuest) { if (d !== lastWant) { lastWant = d; FG.send({ t: "want", d }); } }
+  else bikes[p].want = d;
+}
+
+// Keyboard. Same screen: arrows steer cyan, A/D steer orange. Solo or online: either pair steers your bike.
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  const left = k === "arrowleft" || k === "a", right = k === "arrowright" || k === "d";
+  if (!left && !right) return;
+  const t = left ? -1 : 1, h = FG.human();
+  if (h >= 0) turn(h, t);
+  else if (k.startsWith("arrow")) turn(0, t);
+  else turn(1, t);
+  if (k.startsWith("arrow")) e.preventDefault();
+});
+
+// On-screen joysticks: push toward north/east/south/west to head that way.
+// Straight-back reversals are ignored.
+document.querySelectorAll(".stick").forEach(el => {
+  const knob = el.firstElementChild, p = +el.dataset.p;
+  let id = null;
+  function move(e) {
+    const r = el.getBoundingClientRect();
+    const max = r.width / 2 - knob.offsetWidth / 2;
+    let dx = e.clientX - (r.left + r.width / 2);
+    let dy = e.clientY - (r.top + r.height / 2);
+    const len = Math.hypot(dx, dy);
+    if (len > max) { dx *= max / len; dy *= max / len; }
+    knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+    if (len > max * 0.45 && state === "play") {
+      // 0 up, 1 right, 2 down, 3 left
+      setWant(p, Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
+    }
+  }
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    id = e.pointerId; el.setPointerCapture(id);
+    knob.style.transition = "none";
+    move(e);
+  });
+  el.addEventListener("pointermove", e => { if (e.pointerId === id) move(e); });
+  const end = e => {
+    if (e.pointerId !== id) return;
+    id = null; knob.style.transition = ""; knob.style.transform = "";
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+});
+
+// Screen buttons
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+// Keep the square arena as large as the screen allows
+function fit() {
+  const s = $("stage");
+  const size = Math.floor(Math.min(s.clientWidth, s.clientHeight)) - 16;
+  cv.style.width = cv.style.height = Math.max(size, 100) + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+reset();
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(t => { last = t; loop(t); });
+</script>
+</body>
+</html>

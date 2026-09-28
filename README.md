@@ -1,105 +1,104 @@
-# Party Games
+# Fun Games
 
-Four small two-player games, each played by two people on separate devices with no
-account, backend, or signup — just a room code. Built for a "make a multiplayer game"
-challenge; documented here so the approach is easy to reuse or extend.
+Seven tiny two-player games in one cute front page. Play the computer, share one screen, or send a friend a room code and play from two different devices. Works on phones, tablets and laptops. No accounts, no build step, no backend.
 
-**Live demo:** _add your Vercel URL here after deploying_
+| Game | What you do |
+| --- | --- |
+| Light Cycle Duel | Leave a glowing trail and box your rival in |
+| Chain Reaction | Add orbs, trigger chain explosions, take over the board |
+| Monkey Fruit Fight | Sling bananas, coconuts and berries across the jungle |
+| Sumo Bump | Shove a penguin off the shrinking ice |
+| Bee Garden | Paint the flowers your color before time runs out |
+| Frog Pond | Time your tongue to snag the flies |
+| Cake Stack Duel | Stack the tallest, wobbliest cake first |
 
-| Game | Type | What it is |
-|---|---|---|
-| [`drop-four/`](./drop-four) | Turn-based | Connect-four-style: drop discs, get four in a row |
-| [`counter-rush/`](./counter-rush) | Co-op, timed | Two players share a kitchen counter to plate orders before time runs out |
-| [`dodgeball-arena/`](./dodgeball-arena) | Real-time | Move, dodge, and throw — three hits and you're out |
-| [`bumble-duel/`](./bumble-duel) | Real-time, has single player | Two bees duel in a garden — play a friend online, or fly solo against an AI |
+## Three ways to play
 
-Each game is a single self-contained `index.html` (styles and script inline) that shares
-one vendored copy of [PeerJS](https://peerjs.com/) at [`vendor/peerjs.min.js`](./vendor/peerjs.min.js).
+| Mode | How it works |
+| --- | --- |
+| Solo (vs computer) | Pick Easy, Normal or Hard on the front page. You are player 1. |
+| Same screen | Two people share one device. Every game shows both players' controls. |
+| Online | One player picks a game and taps to create a room, then shares the 5-letter room code or the invite link. The other player types the code on the front page (or opens the link). |
 
-## How the multiplayer works
+Room codes start with a letter that identifies the game (`L` Light Cycle, `C` Chain Reaction, `M` Monkey, `S` Sumo, `B` Bee, `F` Frog, `K` Cake), so the front page can send a friend to the right game from the code alone.
 
-There's no server holding game state — the two players' browsers connect **directly** to
-each other over WebRTC. PeerJS handles the handshake through its free public broker
-(`0.peerjs.com`), which only helps two browsers find each other; once connected, all game
-data flows peer-to-peer.
+## Run it
 
-One player is the **host** (whoever clicks "Start a new game"), and the other is the
-**guest** (whoever enters the room code):
+Any static file server works. From this folder:
 
-- The room code *is* the host's PeerJS id, e.g. `dropfour-party-ABCD`. Each game uses its
-  own prefix so the four games' rooms never collide. Three games use a 4-letter code;
-  Bumble Duel uses a 4-digit numeric code instead (its own `randomCode()`), which is just
-  as unique within its own prefix, and both are just cosmetic choices.
-- Drop Four, Counter Rush, and Ricochet Arena are host-authoritative: the host holds the
-  state and is the only one who mutates it. The guest sends *action* messages
-  (`{type: "move", col: 3}`, `{type: "throw", ...}`); the host applies them, then
-  broadcasts the full state (`{type: "state", doc: {...}}`) back over the data channel.
-  Both clients render from whatever state they last received. Bumble Duel is real-time
-  and uses split authority instead — each client owns its own bee and broadcasts its
-  position, and only ever decides whether *its own* bee got hit. See that game's README
-  for why that avoids both sides disagreeing about who won.
-- This keeps the logic simple (no conflict resolution, no partial updates) at the cost of
-  the host being a single point of failure in the three host-authoritative games: if the
-  host's tab closes, the match ends. See
-  each game's own README for its specific message protocol.
-
-Nothing persists. Closing a tab ends the match; there's no reconnect and no matchmaking
-beyond the room code.
-
-## Running locally
-
-No build step, no dependencies to install. From this folder:
-
-```
-python3 -m http.server 8080
+```bash
+python3 -m http.server 8000
+# open http://localhost:8000
 ```
 
-Then open `http://localhost:8080` in two browser tabs (or two devices on the same
-network, using your machine's LAN IP instead of `localhost`) to play against yourself
-while testing.
+Opening `index.html` directly also works for solo and same-screen play. Online play needs the page to be served over `http://localhost` or `https://`.
 
-## Deploying
+## Deploy
 
-Static files, so any static host works. Using [Vercel](https://vercel.com):
+It is a plain static site, so there is nothing to build.
+
+- **Vercel**: import the repo, choose the "Other" framework preset, leave the build command empty and the output directory as the repo root.
+- **GitHub Pages**: Settings, Pages, deploy from the `main` branch, root folder.
+
+Use `https` for anything you share. Browsers only allow clipboard copy and the share sheet on secure pages.
+
+## How online play works
+
+- Players connect directly to each other with WebRTC, using [PeerJS](https://peerjs.com) (vendored in `vendor/`). The free public PeerJS server only introduces the two devices; game data does not pass through it.
+- The host is player 1 and runs the game. The guest is player 2. Turn-based games (Chain Reaction, Monkey Fruit Fight) send just the moves and both screens play them out identically. Real-time games (Sumo Bump, Bee Garden, Frog Pond) stream the host's game state to the guest about 25 to 30 times a second. Light Cycle Duel streams each move, and Cake Stack Duel sends each drop.
+- A small badge in the corner shows the connection delay in milliseconds.
+- Connections use free public STUN servers. Some strict networks (certain schools, offices and mobile carriers) block direct connections. If a friend cannot connect, add a TURN relay in `shared/config.js`. The same file lets you point at your own PeerJS server.
+
+## Controls
+
+| Game | Keyboard | Touch |
+| --- | --- | --- |
+| Light Cycle Duel | P1 arrow keys, P2 `A` `D` | Joystick |
+| Chain Reaction | Click or tap a cell | Tap |
+| Monkey Fruit Fight | Drag back from anywhere and release | Drag |
+| Sumo Bump | P1 `WASD` + `Space`, P2 arrows + `Enter` | Joystick + Dash |
+| Bee Garden | P1 `WASD`, P2 arrows | Joystick |
+| Frog Pond | P1 `A`, P2 `L` | Tongue button |
+| Cake Stack Duel | P1 `A`, P2 `L` | Drop button or tap the screen |
+
+In solo and online play you always get one set of controls. Either key set works, and `Space` or `Enter` also fire and drop.
+
+## URL parameters
+
+Every game page accepts these, so you can link straight to a mode:
+
+- `?mode=cpu&level=easy|normal|hard`
+- `?mode=local`
+- `?mode=host` creates a room
+- `?join=CODE` joins a room
+
+## Project layout
 
 ```
-npx vercel login      # first time only — confirms via a link sent to your email
-npx vercel --prod      # run from this folder; auto-detects a static site, no config needed
+index.html          front page
+games/              one self-contained HTML file per game
+shared/fg.js        modes, difficulty, room codes and the peer-to-peer link
+shared/fg.css       styles for the mode picker and lobby
+shared/config.js    optional TURN / signaling server settings
+vendor/             PeerJS 1.5.4 (MIT)
+tests/              headless and real-browser tests
 ```
 
-Or drag this whole folder onto [vercel.com/new](https://vercel.com/new) if you'd rather
-not use a terminal.
+### Adding a game
 
-Once deployed, `your-url.vercel.app/` shows the game picker, and each game also has its
-own path, e.g. `your-url.vercel.app/drop-four/`.
+Load `../shared/config.js` and `../shared/fg.js`, then call `FG.setup({ start, stop, onMessage })`. Use `FG.mine(i)`, `FG.ai(i)`, `FG.pick(easy, normal, hard)` and `FG.send(msg)` to handle who controls each player, computer difficulty and online messages. The existing games are the best reference. Then add a card to `GAMES` in `index.html` and a letter to `FILES` in `shared/fg.js`.
 
-## A real limitation
+## Tests
 
-Peer-to-peer connections don't work on every network — some school and corporate wifi
-blocks the kind of connection WebRTC needs. Test on the actual network both players will
-use before relying on it for something time-sensitive (like a submission deadline).
-
-## Project structure
-
+```bash
+cd tests
+npm install
+npm test            # every game in solo, same-screen and simulated online play
+npm test frog-pond  # one game
 ```
-party-games/
-├── index.html              # game picker / landing page
-├── vendor/
-│   └── peerjs.min.js       # PeerJS, vendored so there's no CDN dependency
-├── drop-four/
-│   ├── index.html
-│   └── README.md
-├── counter-rush/
-│   ├── index.html
-│   └── README.md
-├── dodgeball-arena/
-│   ├── index.html
-│   └── README.md
-└── bumble-duel/
-    ├── index.html
-    └── README.md
-```
+
+The suites run each game headlessly with virtual time, including two pages talking through an in-memory stand-in for PeerJS. `tests/e2e/online.py` is an optional check that opens two real Chromium pages and connects them over WebRTC (setup steps are at the top of that file).
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+PeerJS is MIT licensed (`vendor/PEERJS-LICENSE`). Add your own license for the rest of the code.

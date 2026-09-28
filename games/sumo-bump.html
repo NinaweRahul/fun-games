@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sumo Bump</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #0f5c99;
+  --ink: #0d2b45;
+  --muted: #3f6786;
+  --pom: #ff7a3d;
+  --pip: #2f7dff;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); touch-action: none; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Fredoka", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Top bar */
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px 4px;
+}
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 14px;
+  border: 3px solid;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 700;
+}
+.chip.k0 { border-color: var(--pom); }
+.chip.k1 { border-color: var(--pip); }
+.pips { letter-spacing: 2px; }
+.k0 .pips { color: var(--pom); }
+.k1 .pips { color: var(--pip); }
+#round { color: #fff; font-weight: 700; }
+
+#stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+canvas { display: block; border-radius: 18px; box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25); }
+
+/* Touch controls */
+#pads {
+  display: none;
+  justify-content: space-between; align-items: flex-end;
+  padding: 6px 10px 14px;
+}
+@media (pointer: coarse), (max-width: 700px) { #pads { display: flex; } }
+.grp { display: flex; align-items: flex-end; gap: 8px; }
+.grp.k0 { color: var(--pom); }
+.grp.k1 { color: var(--pip); }
+.stick {
+  position: relative;
+  width: min(28vw, 120px); height: min(28vw, 120px);
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  background: rgba(255, 255, 255, 0.55);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.knob {
+  position: absolute; left: 50%; top: 50%;
+  width: 46%; height: 46%; margin: -23% 0 0 -23%;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s;
+  pointer-events: none;
+}
+.dash {
+  width: min(16vw, 68px); height: min(16vw, 68px);
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: currentColor;
+  color: var(--ink);
+  font: 700 0.85rem "Fredoka", system-ui, sans-serif;
+  padding: 0;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.grp.k0 .dash { background: var(--pom); }
+.grp.k1 .dash { background: var(--pip); color: #fff; }
+.dash.cool { opacity: 0.4; }
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+/* Solo and online: only your own stick and dash button, centered */
+body.fg-solo .grp { display: none; }
+body.fg-solo.fg-me-0 .grp.k0, body.fg-solo.fg-me-1 .grp.k1 { display: flex; }
+body.fg-solo #pads { justify-content: center; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(228, 246, 255, 0.92);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 380px; padding: 24px; }
+.hidden { display: none !important; }
+.hero { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.3rem, 10vw, 3.4rem); }
+h2 { font-size: clamp(1.9rem, 8vw, 2.7rem); }
+.bar { width: 120px; height: 5px; border-radius: 3px; margin: 14px auto 16px; background: linear-gradient(90deg, var(--pom) 50%, var(--pip) 50%); }
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.4; font-size: 1.1rem; }
+button.big {
+  display: block; width: 100%; margin: 0 0 14px;
+  padding: 13px 20px;
+  font: 700 1.2rem "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  background: #9fe3ff;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+}
+button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+button.big.ghost { background: #fff; }
+button.big:focus-visible { outline-color: var(--ink); }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.45; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--ink); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+#tally { color: var(--muted); margin: 10px 0 26px; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="chip k0">Pom <span class="pips" id="pp0"></span></div>
+  <div id="round"></div>
+  <div class="chip k1">Pip <span class="pips" id="pp1"></span></div>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="pads">
+  <div class="grp k0">
+    <div class="stick" data-p="0"><div class="knob"></div></div>
+    <button class="dash" data-p="0">Dash</button>
+  </div>
+  <div class="grp k1">
+    <button class="dash" data-p="1">Dash</button>
+    <div class="stick" data-p="1"><div class="knob"></div></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <div class="hero">🐧💥🐧</div>
+    <h1>Sumo Bump</h1>
+    <div class="bar"></div>
+    <p class="sub">Two penguins. One shrinking ice floe. Shove your rival into the sea.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p>Slide around the ice and bump your rival off the edge. The floe <b>shrinks</b> as the round goes on. Fall in the water and you lose the round. <b>First to 2 rounds wins.</b></p>
+      <p><b>Dash</b> is a big shove, but you slide far afterwards, so do not overshoot the edge. It needs a moment to recharge.</p>
+      <p><span class="dot" style="background:var(--pom)"></span><b>Pom (orange):</b> W A S D to move, Space to dash</p>
+      <p><span class="dot" style="background:var(--pip)"></span><b>Pip (blue):</b> arrow keys to move, Enter to dash</p>
+      <p>On a phone, use the joysticks and Dash buttons at the bottom: orange on the left, blue on the right.</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <div class="hero">🏆</div>
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const W = 600, H = 600, CX = 300, CY = 300;
+const R0 = 230, MINR = 14, SHRINK = 11, GRACE = 2;         // floe size, shrink speed, grace seconds
+const PR = 26, ACC = 780, FR = 2.6;                         // penguin radius, push, ice friction
+const DASHV = 520, DASHCD = 1.5, DASHT = 0.28, WIN = 2;
+const COLORS = ["#ff7a3d", "#2f7dff"];
+const NAMES = ["Pom", "Pip"];
+const NAVY = "#1b2a41";
+const KEYS = [
+  { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", dash: "Space" },
+  { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", dash: "Enter" }
+];
+
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = W * 2; cv.height = H * 2;
+
+let pens, parts = [], pops = [], rings = [];
+let state = "menu", rt = 0, platR = R0, cnt = 3, goT = 0, msg = "", round = 1, shake = 0, lastBump = 0;
+const score = [0, 0];
+const keys = new Set();
+const stickV = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+
+/* ---------- rounds ---------- */
+function mkPen(i) {
+  return { id: i, x: i ? 410 : 190, y: CY, vx: 0, vy: 0, r: PR, face: i ? Math.PI : 0,
+           dashT: 0, cd: 0, fall: false, fallT: 0, ix: 0, iy: 0 };
+}
+
+function startMatch() {
+  score[0] = score[1] = 0; round = 1;
+  startRound();
+}
+
+function startRound() {
+  pens = [mkPen(0), mkPen(1)];
+  parts = []; pops = []; rings = [];
+  rt = 0; platR = R0; cnt = 3; msg = ""; shake = 0;
+  state = "count";
+  updateHud();
+  if (FG.isGuest) return;   // the host runs the countdown
+  const iv = setInterval(() => {
+    cnt--;
+    if (cnt <= 0) { clearInterval(iv); state = "play"; goT = performance.now(); }
+  }, 700);
+}
+
+function updateHud() {
+  for (let i = 0; i < 2; i++) $("pp" + i).textContent = "●".repeat(score[i]) + "○".repeat(WIN - score[i]);
+  $("round").textContent = "Round " + round;
+}
+
+function endRound(loser) {
+  state = "pause";
+  if (loser < 0) msg = "Draw!";
+  else { score[1 - loser]++; msg = NAMES[1 - loser] + " scores!"; }
+  updateHud();
+  setTimeout(() => {
+    const w = score[0] >= WIN ? 0 : score[1] >= WIN ? 1 : -1;
+    if (w >= 0) {
+      state = "over";
+      $("result").textContent = NAMES[w] + " wins!";
+      $("tally").textContent = "Pom " + score[0] + "  |  Pip " + score[1];
+      if (FG.isHost) FG.send({ t: "end", r: $("result").textContent, y: $("tally").textContent });
+      show("end");
+    } else { round++; startRound(); }
+  }, 1700);
+}
+
+/* ---------- input ---------- */
+addEventListener("keydown", e => {
+  const used = KEYS.some(k => Object.values(k).includes(e.code));
+  if (!used) return;
+  if (state !== "menu") e.preventDefault();
+  if (e.repeat) return;
+  keys.add(e.code);
+  KEYS.forEach((k, i) => { if (e.code === k.dash) dash(FG.human() >= 0 ? FG.human() : i); });
+});
+addEventListener("keyup", e => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+
+document.querySelectorAll(".stick").forEach(el => {
+  const knob = el.firstElementChild, p = +el.dataset.p;
+  let id = null;
+  function move(e) {
+    const r = el.getBoundingClientRect();
+    const max = r.width / 2 - knob.offsetWidth / 2;
+    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const len = Math.hypot(dx, dy);
+    if (len > max) { dx *= max / len; dy *= max / len; }
+    knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+    const v = Math.hypot(dx, dy) / max;
+    stickV[p] = v < 0.15 ? { x: 0, y: 0 } : { x: dx / max, y: dy / max };
+  }
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault(); id = e.pointerId; el.setPointerCapture(id);
+    knob.style.transition = "none"; move(e);
+  });
+  el.addEventListener("pointermove", e => { if (e.pointerId === id) move(e); });
+  const end = e => {
+    if (e.pointerId !== id) return;
+    id = null; knob.style.transition = ""; knob.style.transform = ""; stickV[p] = { x: 0, y: 0 };
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+});
+document.querySelectorAll(".dash").forEach(b => {
+  b.addEventListener("pointerdown", e => { e.preventDefault(); dash(+b.dataset.p); });
+});
+
+function readInputs() {
+  pens.forEach((p, i) => {
+    if (!FG.mine(i)) return;   // the computer or a friend steers this penguin
+    let x = stickV[i].x, y = stickV[i].y;
+    (FG.human() >= 0 ? KEYS : [KEYS[i]]).forEach(k => {
+      x += (keys.has(k.right) ? 1 : 0) - (keys.has(k.left) ? 1 : 0);
+      y += (keys.has(k.down) ? 1 : 0) - (keys.has(k.up) ? 1 : 0);
+    });
+    const m = Math.hypot(x, y);
+    if (m > 1) { x /= m; y /= m; }
+    p.ix = x; p.iy = y;
+  });
+}
+
+function dash(i) {
+  if (FG.isGuest) { FG.send({ t: "dash" }); return; }
+  const p = pens[i];
+  if ((state !== "play" && state !== "pause") || p.fall || p.cd > 0) return;
+  let dx = p.ix, dy = p.iy, m = Math.hypot(dx, dy);
+  if (m < 0.25) { dx = Math.cos(p.face); dy = Math.sin(p.face); m = 1; }
+  dx /= m; dy /= m;
+  p.vx = dx * DASHV; p.vy = dy * DASHV;
+  p.dashT = DASHT; p.cd = DASHCD; p.face = Math.atan2(dy, dx);
+  puffs(p.x, p.y, dx, dy);
+  if (FG.isHost) evq.push(["d", p.x, p.y, dx, dy]);
+}
+
+function puffs(x, y, dx, dy) {
+  for (let k = 0; k < 8; k++) {
+    parts.push({ x: x - dx * 14, y: y - dy * 14, vx: -dx * 60 + (Math.random() - 0.5) * 90, vy: -dy * 60 + (Math.random() - 0.5) * 90,
+                 life: 0.4 + Math.random() * 0.3, size: 3 + Math.random() * 4, color: "#ffffff" });
+  }
+}
+
+/* ---------- physics ---------- */
+const mass = p => p.dashT > 0 ? 2.2 : 1;
+
+function step(dt) {
+  rt += dt;
+  platR = Math.max(MINR, R0 - Math.max(0, rt - GRACE) * SHRINK);
+
+  for (const p of pens) {
+    if (p.fall) { p.fallT += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.99; p.vy *= 0.99; continue; }
+    p.vx += p.ix * ACC * dt; p.vy += p.iy * ACC * dt;
+    const f = Math.exp(-FR * dt);
+    p.vx *= f; p.vy *= f;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.dashT -= dt; p.cd -= dt;
+
+    // turn to face the direction of travel
+    const sp = Math.hypot(p.vx, p.vy);
+    const target = sp > 25 ? Math.atan2(p.vy, p.vx) : Math.hypot(p.ix, p.iy) > 0.2 ? Math.atan2(p.iy, p.ix) : p.face;
+    p.face += Math.atan2(Math.sin(target - p.face), Math.cos(target - p.face)) * Math.min(1, dt * 12);
+  }
+
+  // penguin vs penguin
+  const [a, b] = pens;
+  if (!a.fall && !b.fall) {
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = a.r + b.r;
+    if (d < min && d > 0) {
+      const nx = dx / d, ny = dy / d, ma = mass(a), mb = mass(b), ov = min - d;
+      a.x -= nx * ov * mb / (ma + mb); a.y -= ny * ov * mb / (ma + mb);
+      b.x += nx * ov * ma / (ma + mb); b.y += ny * ov * ma / (ma + mb);
+      const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (rv < 0) {
+        const j = -2 * rv / (1 / ma + 1 / mb);
+        a.vx -= j * nx / ma; a.vy -= j * ny / ma;
+        b.vx += j * nx / mb; b.vy += j * ny / mb;
+        bump(a.x + nx * a.r, a.y + ny * a.r, -rv);
+      }
+    }
+  }
+
+  // off the ice?
+  const out = pens.map(p => !p.fall && Math.hypot(p.x - CX, p.y - CY) > platR);
+  pens.forEach((p, i) => {
+    if (out[i]) { p.fall = true; p.fallT = 0; rings.push({ x: p.x, y: p.y, t0: performance.now() }); }
+  });
+  if (state === "play" && (out[0] || out[1])) endRound(out[0] && out[1] ? -1 : out[0] ? 0 : 1);
+}
+
+function bump(x, y, impact) {
+  const now = performance.now();
+  if (impact < 200 || now - lastBump < 150) return;
+  lastBump = now;
+  if (FG.isHost) evq.push(["b", x, y, impact]);
+  for (let i = 0; i < 12; i++) {
+    const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 160;
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.4 + Math.random() * 0.3, size: 2 + Math.random() * 3, color: i % 2 ? "#ffffff" : "#bfe9ff" });
+  }
+  shake = Math.min(shake + impact / 90, 9);
+  pops.push({ x, y: y - 22, text: impact > 450 ? "BONK!" : "Bump!", t0: now });
+}
+
+/* ---------- drawing ---------- */
+/* ---------- computer opponent ---------- */
+let aiTick = 0, aiGoal = null;
+function aiInput(dt) {
+  const me = pens[1], foe = pens[0];
+  if (me.fall || foe.fall) { me.ix = me.iy = 0; return; }
+  aiTick -= dt;
+  if (aiTick <= 0 || !aiGoal) {
+    aiTick = FG.pick(0.30, 0.15, 0.05);   // reaction time
+    // stand on the middle side of the rival so a shove sends them toward the edge
+    const dx = foe.x - CX, dy = foe.y - CY, dl = Math.hypot(dx, dy) || 1;
+    const far = Math.hypot(foe.x - me.x, foe.y - me.y) > 110;
+    aiGoal = far ? { x: foe.x - dx / dl * 45, y: foe.y - dy / dl * 45 } : { x: foe.x, y: foe.y };
+  }
+  let gx = aiGoal.x - me.x, gy = aiGoal.y - me.y;
+  const gl = Math.hypot(gx, gy) || 1;
+  gx /= gl; gy /= gl;
+  // stay off the edge: if we are near it and drifting outward, head back to the middle
+  const cx = me.x - CX, cy = me.y - CY, cl = Math.hypot(cx, cy) || 1;
+  const margin = FG.pick(30, 55, 75);
+  if (cl > platR - margin && (me.vx * cx + me.vy * cy) > 0) { gx = -cx / cl; gy = -cy / cl; }
+  const wobble = FG.pick(0.7, 0.25, 0.04);
+  gx += (Math.random() - 0.5) * wobble; gy += (Math.random() - 0.5) * wobble;
+  me.ix = gx; me.iy = gy;
+
+  // dash when the rival is close, we are pointing at them, and the slide will not carry us off the ice
+  const fx = foe.x - me.x, fy = foe.y - me.y, fl = Math.hypot(fx, fy) || 1;
+  const ex = me.x + fx / fl * 200 - CX, ey = me.y + fy / fl * 200 - CY;
+  if (me.cd <= 0 && state === "play" && fl < 150 && Math.hypot(ex, ey) < platR - 25 && Math.random() < FG.pick(0.015, 0.04, 0.12)) {
+    me.ix = fx / fl; me.iy = fy / fl;
+    dash(1);
+  }
+}
+
+/* ---------- online: the host runs the match and streams it, the guest sends steering ---------- */
+let evq = [], snapT = 0, inAcc = 0, lastIn = "";
+
+function hostSend(dt) {
+  if (!FG.isHost || (state !== "count" && state !== "play" && state !== "pause")) return;
+  snapT += dt;
+  if (snapT < 0.033) return;
+  snapT = 0;
+  const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+  FG.send({ t: "s", st: state, cnt, rd: round, sc: score, msg, pr: r1(platR),
+    p: pens.map(p => [r1(p.x), r1(p.y), r1(p.vx), r1(p.vy), r2(p.face), r2(p.dashT), r2(p.cd), p.fall ? 1 : 0, r2(p.fallT)]),
+    ev: evq.splice(0) });
+}
+
+function guestFrame(dt) {
+  if (state !== "count" && state !== "play" && state !== "pause") return;
+  readInputs();
+  inAcc += dt;
+  const me = pens[FG.role], key = me.ix.toFixed(2) + "," + me.iy.toFixed(2);
+  if ((key !== lastIn && inAcc >= 0.033) || inAcc >= 0.5) {
+    FG.send({ t: "in", x: +me.ix.toFixed(2), y: +me.iy.toFixed(2) });
+    lastIn = key; inAcc = 0;
+  }
+  const k = 1 - Math.exp(-dt * 22);
+  pens.forEach(p => {
+    if (p.tx === undefined) return;
+    p.tx += p.vx * dt; p.ty += p.vy * dt;          // keep gliding between snapshots
+    p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
+    p.cd -= dt; p.dashT -= dt;
+    if (p.fall) p.fallT += dt;
+  });
+}
+
+function onNet(m) {
+  if (FG.isHost) {
+    if (m.t === "in") { pens[1].ix = m.x; pens[1].iy = m.y; }
+    else if (m.t === "dash") dash(1);
+  } else if (m.t === "s") {
+    const snap = m.st === "count" || m.rd !== round;
+    state = m.st; cnt = m.cnt; round = m.rd; score[0] = m.sc[0]; score[1] = m.sc[1]; msg = m.msg; platR = m.pr;
+    m.p.forEach((v, i) => {
+      const p = pens[i];
+      if (v[7] && !p.fall) rings.push({ x: v[0], y: v[1], t0: performance.now() });
+      p.tx = v[0]; p.ty = v[1]; p.vx = v[2]; p.vy = v[3]; p.face = v[4]; p.dashT = v[5]; p.cd = v[6]; p.fall = !!v[7]; p.fallT = v[8];
+      if (snap || p.x === undefined || p.snapped !== true) { p.x = p.tx; p.y = p.ty; p.snapped = true; }
+    });
+    updateHud();
+    m.ev.forEach(e => { if (e[0] === "b") bump(e[1], e[2], e[3]); else if (e[0] === "d") puffs(e[1], e[2], e[3], e[4]); });
+  } else if (m.t === "end") {
+    state = "over";
+    $("result").textContent = m.r; $("tally").textContent = m.y;
+    show("end");
+  }
+}
+
+function ell(x, y, rx, ry, rot, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function penguin(p, t) {
+  if (p.fall && p.fallT > 0.7) return;
+  const s = p.fall ? Math.max(0, 1 - p.fallT * 1.4) : 1 + Math.sin(t / 250 + p.id) * 0.02;
+  const sp = Math.hypot(p.vx, p.vy), mv = Math.min(sp / 280, 1);
+  const color = COLORS[p.id];
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  if (!p.fall) ell(3, 6, p.r, p.r * 0.9, 0, "rgba(20,60,100,0.22)");
+  ctx.globalAlpha = p.fall ? s : 1;
+  ctx.scale(s, s);
+  ctx.rotate(p.face + (p.fall ? p.fallT * 4 : 0) + Math.sin(t / 90) * mv * 0.1);
+
+  // feet (waddle), flippers, body, belly
+  const st = Math.sin(t / 70) * mv * 5;
+  ell(-14 + st, -11, 8, 4.5, 0, "#ffa53a");
+  ell(-14 - st, 11, 8, 4.5, 0, "#ffa53a");
+  const fl = (p.dashT > 0 ? 0.9 : 0.5) + Math.sin(t / 80) * mv * 0.25;
+  ell(2, -p.r, 13, 5, -fl, NAVY);
+  ell(2, p.r, 13, 5, fl, NAVY);
+  ctx.fillStyle = NAVY; ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
+  ell(0, 0, 15, 19, 0, "#ffffff");
+
+  // scarf
+  ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.arc(-6, 0, 19, -1.3, 1.3); ctx.stroke();
+
+  // face
+  [-7, 7].forEach(y => {
+    ell(18, y, 4.4, 4.4, 0, "#ffffff");
+    ell(19.2, y, 2.2, 2.2, 0, "#111");
+    ell(14, y * 1.9, 3, 3, 0, "rgba(255,120,150,0.55)");
+  });
+  ctx.fillStyle = "#ffa53a";
+  ctx.beginPath(); ctx.moveTo(23, -4); ctx.lineTo(33, 0); ctx.lineTo(23, 4); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // dash recharge ring
+  if (!p.fall && p.cd > 0) {
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 7, -Math.PI / 2, -Math.PI / 2 + (1 - p.cd / DASHCD) * Math.PI * 2); ctx.stroke();
+  }
+}
+
+function banner(text, y, size) {
+  ctx.font = "700 " + size + "px Fredoka, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+  ctx.lineWidth = size / 7; ctx.strokeStyle = "#fff"; ctx.strokeText(text, CX, y);
+  ctx.fillStyle = "#0d2b45"; ctx.fillText(text, CX, y);
+}
+
+function draw(t) {
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  if (shake > 0.2) ctx.translate((Math.random() - 0.5) * shake * 2, (Math.random() - 0.5) * shake * 2);
+
+  // water
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#43aee6"); g.addColorStop(1, "#0f5c99");
+  ctx.fillStyle = g; ctx.fillRect(-12, -12, W + 24, H + 24);
+  ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 3; ctx.lineCap = "round";
+  for (let i = 0; i < 16; i++) {
+    const bx = (i * 97) % W, by = (i * 173) % H, o = Math.sin(t / 900 + i) * 3;
+    ctx.beginPath(); ctx.moveTo(bx - 18, by + o); ctx.quadraticCurveTo(bx, by - 6 + o, bx + 18, by + o); ctx.stroke();
+  }
+
+  // ice floe with a darker underside
+  const r = state === "menu" ? R0 : platR;
+  ctx.fillStyle = "#7fbfe0"; ctx.beginPath(); ctx.arc(CX, CY + 10, r, 0, Math.PI * 2); ctx.fill();
+  const ig = ctx.createRadialGradient(CX, CY - 30, 20, CX, CY, r);
+  ig.addColorStop(0, "#ffffff"); ig.addColorStop(1, "#cbe9f8");
+  ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(CX, CY, r, 0, Math.PI * 2); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(CX, CY, r, 0, Math.PI * 2); ctx.clip();
+  ctx.strokeStyle = "#b3d9ee"; ctx.lineWidth = 2; ctx.lineJoin = "round";
+  [[[-200, -60], [-90, -20], [-40, 50], [30, 70]], [[60, -210], [30, -120], [90, -60]], [[150, 80], [70, 40], [40, -30]]].forEach(pl => {
+    ctx.beginPath(); pl.forEach(([x, y], k) => k ? ctx.lineTo(CX + x, CY + y) : ctx.moveTo(CX + x, CY + y)); ctx.stroke();
+  });
+  ctx.restore();
+  ctx.strokeStyle = "#f4fbff"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(CX, CY, r - 2, 0, Math.PI * 2); ctx.stroke();
+
+  // splash rings
+  const now = performance.now();
+  rings = rings.filter(o => now - o.t0 < 900);
+  rings.forEach(o => {
+    const a = (now - o.t0) / 900;
+    ctx.globalAlpha = 1 - a; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(o.x, o.y, 12 + a * 55, 0, Math.PI * 2); ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+
+  // falling penguins go under the standing ones
+  [...pens].sort((a, b) => (b.fall ? 1 : 0) - (a.fall ? 1 : 0)).forEach(p => penguin(p, t));
+
+  // snow puffs
+  parts.forEach(q => { ctx.globalAlpha = Math.min(q.life * 2.5, 1); ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, Math.PI * 2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+
+  // popups
+  pops = pops.filter(p => now - p.t0 < 800);
+  pops.forEach(p => {
+    const a = Math.max(0, (now - p.t0) / 800);
+    ctx.globalAlpha = 1 - a * a;
+    ctx.font = "700 24px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 5; ctx.strokeStyle = "#fff"; ctx.strokeText(p.text, p.x, p.y - a * 26);
+    ctx.fillStyle = "#e4572e"; ctx.fillText(p.text, p.x, p.y - a * 26);
+  });
+  ctx.globalAlpha = 1;
+
+  // messages
+  if (state === "count") { banner(String(cnt), CY, 110); const you = FG.you(NAMES); if (you) banner(you, CY + 90, 34); }
+  else if (state === "play" && now - goT < 600) banner("Go!", CY, 110);
+  else if (state === "pause") banner(msg, 70, 56);
+}
+
+/* ---------- main loop ---------- */
+let last = 0, acc = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000, 0.05); last = t;
+  if (FG.isGuest) guestFrame(dt);
+  else if (state === "play" || state === "pause") {
+    readInputs();
+    if (FG.mode === "cpu") aiInput(dt);
+    acc += dt;
+    while (acc >= 1 / 120) { acc -= 1 / 120; step(1 / 120); }
+  }
+  hostSend(dt);
+  for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.94; q.vy *= 0.94; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0);
+  shake = Math.max(0, shake - dt * 20);
+  document.querySelectorAll(".dash").forEach(b => b.classList.toggle("cool", pens[+b.dataset.p].cd > 0));
+  draw(t);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- screens ---------- */
+function show(id) { FG.show(id); }
+function start() { $("overlay").classList.add("hidden"); startMatch(); }
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+function fit() {
+  const s = $("stage");
+  const size = Math.max(Math.min(s.clientWidth - 16, s.clientHeight - 8), 120);
+  cv.style.width = cv.style.height = size + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+pens = [mkPen(0), mkPen(1)];
+updateHud();
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

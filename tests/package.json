@@ -1,0 +1,8 @@
+{
+  "name": "fun-games-tests",
+  "private": true,
+  "type": "module",
+  "description": "Headless smoke tests: every game in every play mode, including a simulated online link",
+  "scripts": { "test": "node run.mjs" },
+  "devDependencies": { "@sinonjs/fake-timers": "^11.2.2", "jsdom": "^24.1.0" }
+}
