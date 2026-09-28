@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bee Garden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #2f7d3a;
+  --ink: #2f2a1a;
+  --muted: #6b5f3a;
+  --honey: #ff5c9d;
+  --buzz: #3d8bff;
+  --sun: #ffd23f;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); touch-action: none; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Fredoka", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Top bar */
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px 4px;
+}
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 14px;
+  border: 3px solid;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 700;
+}
+.chip.k0 { border-color: var(--honey); }
+.chip.k1 { border-color: var(--buzz); }
+.chip b { font-size: 1.2rem; min-width: 1.4ch; text-align: right; }
+#time { color: #fff; font-weight: 700; font-size: 1.7rem; }
+#time.low { color: #ffe066; }
+
+#stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+canvas { display: block; border-radius: 18px; box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25); }
+
+/* Touch controls */
+#pads {
+  display: none;
+  justify-content: space-between; align-items: flex-end;
+  padding: 6px 16px 14px;
+}
+@media (pointer: coarse), (max-width: 700px) { #pads { display: flex; } }
+.grp { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #fff; font-weight: 700; font-size: 0.85rem; }
+.grp.k0 { --c: var(--honey); }
+.grp.k1 { --c: var(--buzz); }
+.stick {
+  position: relative;
+  width: min(34vw, 140px); height: min(34vw, 140px);
+  border-radius: 50%;
+  border: 3px solid var(--c);
+  background: rgba(255, 255, 255, 0.6);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.knob {
+  position: absolute; left: 50%; top: 50%;
+  width: 46%; height: 46%; margin: -23% 0 0 -23%;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s;
+  pointer-events: none;
+}
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+/* Solo and online: only your own joystick, centered */
+body.fg-solo .grp { display: none; }
+body.fg-solo.fg-me-0 .grp.k0, body.fg-solo.fg-me-1 .grp.k1 { display: flex; }
+body.fg-solo #pads { justify-content: center; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 250, 224, 0.93);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 380px; padding: 24px; }
+.hidden { display: none !important; }
+.hero { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.3rem, 10vw, 3.4rem); }
+h2 { font-size: clamp(1.9rem, 8vw, 2.7rem); }
+.bar { width: 120px; height: 5px; border-radius: 3px; margin: 14px auto 16px; background: linear-gradient(90deg, var(--honey) 50%, var(--buzz) 50%); }
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.4; font-size: 1.1rem; }
+button.big {
+  display: block; width: 100%; margin: 0 0 14px;
+  padding: 13px 20px;
+  font: 700 1.2rem "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--sun);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+}
+button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+button.big.ghost { background: #fff; }
+button.big:focus-visible { outline-color: var(--ink); }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.45; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--ink); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+#tally { color: var(--muted); margin: 10px 0 26px; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="chip k0">Honey <b id="n0">0</b></div>
+  <div id="time">1:00</div>
+  <div class="chip k1">Buzz <b id="n1">0</b></div>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="pads">
+  <div class="grp k0"><div class="stick" data-p="0"><div class="knob"></div></div>Honey</div>
+  <div class="grp k1"><div class="stick" data-p="1"><div class="knob"></div></div>Buzz</div>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <div class="hero">🐝🌸🐝</div>
+    <h1>Bee Garden</h1>
+    <div class="bar"></div>
+    <p class="sub">Two bees, one garden. Paint more flowers than your rival before time runs out.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p>Fly over a flower to turn it <b>your color</b>. Fly over your rival's flowers to steal them back.</p>
+      <p>A <b>golden flower</b> pops up now and then. Grab it to color a whole patch of flowers around it in one go.</p>
+      <p>When the 60 seconds are up, the bee with the most flowers wins.</p>
+      <p><span class="dot" style="background:var(--honey)"></span><b>Honey (pink):</b> W A S D</p>
+      <p><span class="dot" style="background:var(--buzz)"></span><b>Buzz (blue):</b> arrow keys</p>
+      <p>On a phone, use the two joysticks at the bottom: pink on the left, blue on the right.</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <div class="hero" id="endEmoji">🏆</div>
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const W = 600, H = 600;
+const COLS = 7, GAP = 80, OFF = 60;             // 7 x 7 flower grid
+const TIME = 60, ACC = 1000, FR = 4.2, BR = 16; // round length, bee push, air drag, bee radius
+const TOUCH = 30, PATCH = 125, GOLD_LIFE = 8;   // touch reach, golden patch radius, golden lifetime
+const COLORS = ["#ff5c9d", "#3d8bff"];
+const NAMES = ["Honey", "Buzz"];
+const KEYS = [
+  { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD" },
+  { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight" }
+];
+
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = W * 2; cv.height = H * 2;
+
+let flowers, bees, gold, goldWait, parts = [], pops = [];
+let state = "menu", timeLeft = TIME, cnt = 3, goT = 0, shake = 0;
+const keys = new Set();
+const stickV = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+
+/* ---------- game setup ---------- */
+function mkBee(i) {
+  return { id: i, x: i ? 510 : 90, y: 300, vx: 0, vy: 0, face: i ? -1 : 1, ix: 0, iy: 0 };
+}
+
+function setup(pl) {
+  flowers = [];
+  for (let r = 0; r < COLS; r++)
+    for (let c = 0; c < COLS; c++)
+      flowers.push({
+        x: OFF + c * GAP + (Math.random() - 0.5) * 22,
+        y: OFF + r * GAP + (Math.random() - 0.5) * 22,
+        c: -1, pop: 0, pend: null, rot: Math.random() * 6, sway: Math.random() * 6
+      });
+  flowers.forEach((f, i) => {
+    if (pl && pl.fp) { f.x = pl.fp[i][0]; f.y = pl.fp[i][1]; }
+    f.x = Math.round(f.x * 10) / 10; f.y = Math.round(f.y * 10) / 10;
+  });
+  bees = [mkBee(0), mkBee(1)];
+  gold = null; goldWait = 5; parts = []; pops = [];
+  timeLeft = TIME; shake = 0;
+}
+
+function startGame(pl) {
+  setup(pl);
+  cnt = 3; state = "count";
+  if (FG.isGuest) return;   // the host runs the countdown
+  const iv = setInterval(() => {
+    cnt--;
+    if (cnt <= 0) { clearInterval(iv); state = "play"; goT = performance.now(); }
+  }, 700);
+}
+
+/* ---------- input ---------- */
+addEventListener("keydown", e => {
+  if (!KEYS.some(k => Object.values(k).includes(e.code))) return;
+  if (state !== "menu") e.preventDefault();
+  keys.add(e.code);
+});
+addEventListener("keyup", e => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+
+document.querySelectorAll(".stick").forEach(el => {
+  const knob = el.firstElementChild, p = +el.dataset.p;
+  let id = null;
+  function move(e) {
+    const r = el.getBoundingClientRect();
+    const max = r.width / 2 - knob.offsetWidth / 2;
+    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const len = Math.hypot(dx, dy);
+    if (len > max) { dx *= max / len; dy *= max / len; }
+    knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+    const v = Math.hypot(dx, dy) / max;
+    stickV[p] = v < 0.15 ? { x: 0, y: 0 } : { x: dx / max, y: dy / max };
+  }
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault(); id = e.pointerId; el.setPointerCapture(id);
+    knob.style.transition = "none"; move(e);
+  });
+  el.addEventListener("pointermove", e => { if (e.pointerId === id) move(e); });
+  const end = e => {
+    if (e.pointerId !== id) return;
+    id = null; knob.style.transition = ""; knob.style.transform = ""; stickV[p] = { x: 0, y: 0 };
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+});
+
+function readInputs() {
+  bees.forEach((b, i) => {
+    if (!FG.mine(i)) return;   // the computer or a friend steers this bee
+    let x = stickV[i].x, y = stickV[i].y;
+    (FG.human() >= 0 ? KEYS : [KEYS[i]]).forEach(k => {
+      x += (keys.has(k.right) ? 1 : 0) - (keys.has(k.left) ? 1 : 0);
+      y += (keys.has(k.down) ? 1 : 0) - (keys.has(k.up) ? 1 : 0);
+    });
+    const m = Math.hypot(x, y);
+    if (m > 1) { x /= m; y /= m; }
+    b.ix = x; b.iy = y;
+  });
+}
+
+/* ---------- computer opponent ---------- */
+let aiTick = 0, aiGoal = null;
+function aiInput(dt) {
+  const me = bees[1], foe = bees[0];
+  aiTick -= dt;
+  const stale = aiGoal && (Math.hypot(aiGoal.x - me.x, aiGoal.y - me.y) < 14 || aiGoal.f.c === 1);
+  if (aiTick <= 0 || !aiGoal || stale) {
+    aiTick = FG.pick(0.7, 0.35, 0.12);   // how often it rethinks
+    let best = null;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.c === 1) continue;
+      let s = Math.hypot(f.x - me.x, f.y - me.y);
+      if (gold && gold.i === i) s -= FG.pick(150, 300, 520);                                   // golden flower: go for it
+      if (FG.level === "hard") {
+        const near = flowers.filter(o => o.c !== 1 && Math.hypot(o.x - f.x, o.y - f.y) < 100).length;
+        s -= near * 22;                                                                          // prefer clusters
+        if (f.c === 0) s -= 25;                                                                  // and steal from the rival
+      }
+      s += Math.random() * FG.pick(160, 50, 15);
+      if (!best || s < best.s) best = { f, s };
+    }
+    aiGoal = best ? { x: best.f.x, y: best.f.y, f: best.f } : { x: foe.x, y: foe.y, f: { c: 1 } };
+  }
+  let gx = aiGoal.x - me.x, gy = aiGoal.y - me.y;
+  const gl = Math.hypot(gx, gy) || 1;
+  me.ix = gx / gl; me.iy = gy / gl;
+}
+
+/* ---------- online: the host runs the game and streams it, the guest sends steering ---------- */
+let evq = [], snapT = 0, inAcc = 0, lastIn = "";
+
+function hostSend(dt, force) {
+  if (!FG.isHost || (!force && state !== "count" && state !== "play")) return;
+  snapT += dt;
+  if (snapT < 0.04 && !force) return;
+  snapT = 0;
+  const r1 = v => Math.round(v * 10) / 10;
+  FG.send({ t: "s", st: state, cnt, tl: r1(timeLeft),
+    b: bees.map(b => [r1(b.x), r1(b.y), r1(b.vx), r1(b.vy), b.face]),
+    f: flowers.map(f => f.c < 0 ? "n" : f.c).join(""),
+    g: gold ? [gold.i, r1(gold.left)] : null,
+    ev: evq.splice(0) });
+}
+
+function guestFrame(dt) {
+  if (state === "play") timeLeft = Math.max(0, timeLeft - dt);
+  if (gold) gold.left -= dt;
+  if (state !== "count" && state !== "play") return;
+  readInputs();
+  inAcc += dt;
+  const me = bees[FG.role], key = me.ix.toFixed(2) + "," + me.iy.toFixed(2);
+  if ((key !== lastIn && inAcc >= 0.04) || inAcc >= 0.5) {
+    FG.send({ t: "in", x: +me.ix.toFixed(2), y: +me.iy.toFixed(2) });
+    lastIn = key; inAcc = 0;
+  }
+  const k = 1 - Math.exp(-dt * 20);
+  bees.forEach(b => {
+    if (b.tx === undefined) return;
+    b.tx += b.vx * dt; b.ty += b.vy * dt;          // keep gliding between snapshots
+    b.x += (b.tx - b.x) * k; b.y += (b.ty - b.y) * k;
+  });
+}
+
+function onNet(m) {
+  if (FG.isHost) {
+    if (m.t === "in") { bees[1].ix = m.x; bees[1].iy = m.y; }
+  } else if (m.t === "s") {
+    state = m.st; cnt = m.cnt; timeLeft = m.tl;
+    m.b.forEach((v, i) => {
+      const b = bees[i];
+      b.tx = v[0]; b.ty = v[1]; b.vx = v[2]; b.vy = v[3]; b.face = v[4];
+      if (b.snapped !== true) { b.x = b.tx; b.y = b.ty; b.snapped = true; }
+    });
+    for (let i = 0; i < flowers.length; i++) {
+      const c = m.f[i] === "n" ? -1 : +m.f[i];
+      if (flowers[i].c !== c) { if (c >= 0) paint(flowers[i], c); else flowers[i].c = c; }
+    }
+    gold = m.g ? { i: m.g[0], left: m.g[1] } : null;
+    m.ev.forEach(e => {
+      if (e[0] !== "g") return;
+      for (let i = 0; i < 24; i++) {
+        const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 200;
+        parts.push({ x: e[1], y: e[2], vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5 + Math.random() * 0.4, size: 3 + Math.random() * 3, color: i % 2 ? "#ffd43b" : COLORS[e[3]] });
+      }
+      pops.push({ x: e[1], y: e[2] - 20, text: "Patch! +" + e[4], color: COLORS[e[3]], t0: performance.now() });
+      shake = 4;
+    });
+  } else if (m.t === "end") {
+    state = "over";
+    $("endEmoji").textContent = m.e; $("result").textContent = m.r; $("tally").textContent = m.y;
+    show("end");
+  }
+}
+
+/* ---------- game logic ---------- */
+function paint(f, c) {
+  f.c = c; f.pend = null; f.pop = performance.now();
+  for (let i = 0; i < 5; i++) {
+    const a = Math.random() * Math.PI * 2, s = 30 + Math.random() * 70;
+    parts.push({ x: f.x, y: f.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, life: 0.4 + Math.random() * 0.3, size: 2.5 + Math.random() * 2, color: COLORS[c] });
+  }
+}
+
+function spawnGold() {
+  gold = { i: Math.floor(Math.random() * flowers.length), left: GOLD_LIFE };
+}
+
+function claim(b) {
+  const g = flowers[gold.i], now = performance.now();
+  let n = 0;
+  flowers.forEach(f => {
+    const d = Math.hypot(f.x - g.x, f.y - g.y);
+    if (d <= PATCH && f.c !== b.id) { f.pend = { c: b.id, at: now + d * 3 }; n++; }
+  });
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 200;
+    parts.push({ x: g.x, y: g.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5 + Math.random() * 0.4, size: 3 + Math.random() * 3, color: i % 2 ? "#ffd43b" : COLORS[b.id] });
+  }
+  pops.push({ x: g.x, y: g.y - 20, text: "Patch! +" + n, color: COLORS[b.id], t0: now });
+  gold = null; goldWait = 7 + Math.random() * 4;
+  shake = 4;
+  if (FG.isHost) evq.push(["g", g.x, g.y, b.id, n]);
+}
+
+function step(dt) {
+  timeLeft -= dt;
+
+  // golden flower comes and goes
+  if (gold) {
+    gold.left -= dt;
+    if (gold.left <= 0) { gold = null; goldWait = 6 + Math.random() * 4; }
+  } else {
+    goldWait -= dt;
+    if (goldWait <= 0 && timeLeft > 6) spawnGold();
+  }
+
+  // patch wave: flowers change color a moment after the golden touch
+  const now = performance.now();
+  flowers.forEach(f => { if (f.pend && now >= f.pend.at) paint(f, f.pend.c); });
+
+  for (const b of bees) {
+    b.vx += b.ix * ACC * dt; b.vy += b.iy * ACC * dt;
+    const fr = Math.exp(-FR * dt);
+    b.vx *= fr; b.vy *= fr;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < BR) { b.x = BR; b.vx = Math.abs(b.vx) * 0.4; }
+    if (b.x > W - BR) { b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.4; }
+    if (b.y < BR) { b.y = BR; b.vy = Math.abs(b.vy) * 0.4; }
+    if (b.y > H - BR) { b.y = H - BR; b.vy = -Math.abs(b.vy) * 0.4; }
+    if (Math.abs(b.ix) > 0.2) b.face = Math.sign(b.ix);
+    else if (Math.abs(b.vx) > 30) b.face = Math.sign(b.vx);
+
+    // touch flowers
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (Math.hypot(b.x - f.x, b.y - f.y) > TOUCH) continue;
+      if (gold && gold.i === i) { claim(b); }
+      else if (f.c !== b.id) paint(f, b.id);
+    }
+  }
+
+  // bees bump softly
+  const [a, c] = bees;
+  const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy);
+  if (d < BR * 2 && d > 0) {
+    const nx = dx / d, ny = dy / d, ov = BR * 2 - d;
+    a.x -= nx * ov / 2; a.y -= ny * ov / 2; c.x += nx * ov / 2; c.y += ny * ov / 2;
+    const rv = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
+    if (rv < 0) {
+      const j = -1.8 * rv / 2;
+      a.vx -= j * nx; a.vy -= j * ny; c.vx += j * nx; c.vy += j * ny;
+    }
+  }
+
+  if (timeLeft <= 0) finish();
+}
+
+function counts() {
+  const n = [0, 0];
+  flowers.forEach(f => { if (f.c >= 0) n[f.c]++; });
+  return n;
+}
+
+function finish() {
+  timeLeft = 0; state = "over";
+  flowers.forEach(f => { if (f.pend) paint(f, f.pend.c); });
+  hostSend(0, true);
+  setTimeout(() => {
+    const n = counts();
+    const w = n[0] === n[1] ? -1 : n[0] > n[1] ? 0 : 1;
+    $("endEmoji").textContent = w < 0 ? "🤝" : "🏆";
+    $("result").textContent = w < 0 ? "It's a tie!" : NAMES[w] + " wins!";
+    $("tally").textContent = "Honey " + n[0] + "  |  Buzz " + n[1];
+    if (FG.isHost) FG.send({ t: "end", e: $("endEmoji").textContent, r: $("result").textContent, y: $("tally").textContent });
+    show("end");
+  }, 1300);
+}
+
+/* ---------- drawing ---------- */
+function ell(x, y, rx, ry, rot, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawFlower(f, t, isGold) {
+  const now = performance.now();
+  const pk = Math.max(0, 1 - (now - f.pop) / 280);
+  const pulse = isGold ? 1.3 + Math.sin(t / 150) * 0.1 : 1;
+  const sc = pulse + pk * 0.4;
+  const petal = isGold ? "#ffd43b" : f.c < 0 ? "#fffaf0" : COLORS[f.c];
+
+  ctx.save();
+  ctx.translate(f.x, f.y);
+  ctx.scale(sc, sc);
+  ctx.rotate(f.rot + Math.sin(t / 700 + f.sway) * 0.08 + (isGold ? t / 900 : 0));
+  if (isGold) { ctx.shadowColor = "#fff3a0"; ctx.shadowBlur = 22; }
+  ctx.strokeStyle = "rgba(60,40,20,0.25)"; ctx.lineWidth = 1;
+  for (let k = 0; k < 6; k++) {
+    ctx.save(); ctx.rotate(k * Math.PI / 3);
+    ctx.fillStyle = petal; ctx.beginPath(); ctx.ellipse(0, -13, 8, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.shadowBlur = 0;
+  ell(0, 0, 8, 8, 0, isGold ? "#ff9f1c" : "#ffd23f");
+  ell(-2, -2, 2.5, 2.5, 0, "rgba(255,255,255,0.6)");
+  ctx.restore();
+
+  if (isGold) {
+    ctx.fillStyle = "#fff";
+    for (let k = 0; k < 4; k++) {
+      const a = t / 400 + k * Math.PI / 2, x = f.x + Math.cos(a) * 30, y = f.y + Math.sin(a) * 30;
+      ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 2, y - 2); ctx.lineTo(x + 5, y); ctx.lineTo(x + 2, y + 2);
+      ctx.lineTo(x, y + 5); ctx.lineTo(x - 2, y + 2); ctx.lineTo(x - 5, y); ctx.lineTo(x - 2, y - 2); ctx.fill();
+    }
+  }
+}
+
+function drawBee(b, t) {
+  const color = COLORS[b.id], bob = Math.sin(t / 120 + b.id * 2) * 2;
+  ell(b.x, b.y + 22, 12, 4, 0, "rgba(0,0,0,0.18)");
+
+  ctx.save();
+  ctx.translate(b.x, b.y + bob);
+  // colored aura so you can always spot your bee
+  ctx.globalAlpha = 0.25; ell(0, 0, 26, 26, 0, color); ctx.globalAlpha = 1;
+  ctx.strokeStyle = color; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.scale(b.face, 1);
+  // wings
+  const fl = Math.sin(t / 25 + b.id) * 0.5;
+  ctx.strokeStyle = "rgba(110,170,255,0.7)"; ctx.lineWidth = 1.2;
+  [[-4, -12, -0.5], [3, -13, 0.1]].forEach(([x, y, r]) => {
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath(); ctx.ellipse(x, y, 8, 6 + fl * 3, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  });
+  // stinger and body with stripes
+  ctx.fillStyle = "#3a2a1a";
+  ctx.beginPath(); ctx.moveTo(-15, -2); ctx.lineTo(-22, 1); ctx.lineTo(-15, 4); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(0, 0, 16, 12, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = "#ffd23f"; ctx.fillRect(-20, -14, 40, 28);
+  ctx.fillStyle = color; ctx.fillRect(-8, -14, 6, 28); ctx.fillRect(3, -14, 6, 28);
+  ctx.restore();
+  // head
+  ell(13, -2, 8.5, 8, 0, "#ffe27a");
+  ell(16, -4, 3.3, 3.3, 0, "#fff"); ell(17, -4, 1.7, 1.7, 0, "#222");
+  ell(12, 2, 2.4, 2.4, 0, "rgba(255,120,150,0.6)");
+  ctx.strokeStyle = "#3a2a1a"; ctx.lineWidth = 1.4; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.arc(16, 1, 2.6, 0.2 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  // antennae
+  ctx.beginPath(); ctx.moveTo(12, -9); ctx.lineTo(15, -17); ctx.moveTo(16, -8); ctx.lineTo(21, -15); ctx.stroke();
+  ell(15, -18, 2.6, 2.6, 0, color); ell(21.5, -16, 2.6, 2.6, 0, color);
+  ctx.restore();
+}
+
+function banner(text, y, size) {
+  ctx.font = "700 " + size + "px Fredoka, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+  ctx.lineWidth = size / 7; ctx.strokeStyle = "#fff"; ctx.strokeText(text, W / 2, y);
+  ctx.fillStyle = "#2f2a1a"; ctx.fillText(text, W / 2, y);
+}
+
+function draw(t) {
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  if (shake > 0.2) ctx.translate((Math.random() - 0.5) * shake * 2, (Math.random() - 0.5) * shake * 2);
+
+  // mowed lawn stripes
+  for (let i = 0; i < 10; i++) {
+    ctx.fillStyle = i % 2 ? "#86d271" : "#92da7c";
+    ctx.fillRect(i * 60 - 6, -12, 66, H + 24);
+  }
+
+  flowers.forEach((f, i) => { if (!(gold && gold.i === i)) drawFlower(f, t, false); });
+  if (gold) drawFlower(flowers[gold.i], t, true);
+  bees.forEach(b => drawBee(b, t));
+
+  parts.forEach(q => { ctx.globalAlpha = Math.min(q.life * 2.5, 1); ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, Math.PI * 2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+
+  const now = performance.now();
+  pops = pops.filter(p => now - p.t0 < 1000);
+  pops.forEach(p => {
+    const a = Math.max(0, (now - p.t0) / 1000);
+    ctx.globalAlpha = 1 - a * a;
+    ctx.font = "700 26px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 6; ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.strokeText(p.text, p.x, p.y - a * 30);
+    ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y - a * 30);
+  });
+  ctx.globalAlpha = 1;
+
+  if (state === "count") { banner(String(cnt), H / 2, 120); const you = FG.you(NAMES); if (you) banner(you, H / 2 + 95, 34); }
+  else if (state === "play" && now - goT < 600) banner("Go!", H / 2, 120);
+  else if (state === "over") banner("Time!", H / 2, 100);
+}
+
+/* ---------- main loop ---------- */
+let last = 0, acc = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000, 0.05); last = t;
+  if (FG.isGuest) guestFrame(dt);
+  else if (state === "play") {
+    readInputs();
+    if (FG.mode === "cpu") aiInput(dt);
+    acc += dt;
+    while (acc >= 1 / 120 && state === "play") { acc -= 1 / 120; step(1 / 120); }
+  }
+  hostSend(dt);
+  for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.95; q.vy *= 0.95; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0);
+  shake = Math.max(0, shake - dt * 20);
+
+  const n = counts(), s = Math.ceil(Math.max(timeLeft, 0));
+  $("n0").textContent = n[0]; $("n1").textContent = n[1];
+  $("time").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  $("time").classList.toggle("low", state === "play" && timeLeft <= 10);
+
+  draw(t);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- screens ---------- */
+function show(id) { FG.show(id); }
+function start(pl) {
+  $("overlay").classList.add("hidden");
+  startGame(pl);
+  return FG.isHost ? { fp: flowers.map(f => [f.x, f.y]) } : undefined;
+}
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+function fit() {
+  const s = $("stage");
+  const size = Math.max(Math.min(s.clientWidth - 16, s.clientHeight - 8), 120);
+  cv.style.width = cv.style.height = size + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+setup();
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

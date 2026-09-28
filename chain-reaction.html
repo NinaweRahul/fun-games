@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chain Reaction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #05070d;
+  --p1: #19f0ff;
+  --p2: #ff8a1f;
+  --text: #e8f1ff;
+  --muted: #8a9cbd;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Chakra Petch", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Scoreboard */
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 12px 14px 4px;
+}
+.chip {
+  min-width: 64px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 6px 12px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  font-weight: 700; font-size: 1.1rem;
+  opacity: 0.4;
+  transition: opacity 0.2s, box-shadow 0.2s;
+}
+.chip i { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
+.chip.on { opacity: 1; box-shadow: 0 0 14px currentColor; }
+.c1 { color: var(--p1); }
+.c2 { color: var(--p2); }
+#turnTxt { font-weight: 700; font-size: 1.1rem; }
+
+#stage {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+canvas { display: block; background: var(--bg); touch-action: none; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(5, 7, 13, 0.85);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 360px; padding: 24px; }
+.hidden { display: none !important; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.1rem, 9vw, 3.3rem); text-shadow: 0 0 20px rgba(25, 240, 255, 0.45); }
+h2 { font-size: clamp(1.8rem, 8vw, 2.6rem); }
+.bar {
+  width: 120px; height: 3px; margin: 14px auto 16px;
+  background: linear-gradient(90deg, var(--p1) 50%, var(--p2) 50%);
+}
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.45; }
+button.big {
+  display: block; width: 100%; margin: 0 0 12px;
+  padding: 14px 20px;
+  font: 700 1.1rem "Chakra Petch", system-ui, sans-serif;
+  color: var(--text);
+  background: transparent;
+  border: 2px solid var(--p1);
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.big:hover { background: rgba(25, 240, 255, 0.12); box-shadow: 0 0 16px rgba(25, 240, 255, 0.35); }
+button.big.ghost { border-color: var(--muted); }
+button.big.ghost:hover { background: rgba(138, 156, 189, 0.12); box-shadow: none; }
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.5; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--text); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+#tally { color: var(--muted); margin: 10px 0 26px; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="chip c1" id="h0"><i></i><span id="n0">0</span></div>
+  <div id="turnTxt"></div>
+  <div class="chip c2" id="h1"><i></i><span id="n1">0</span></div>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <h1>Chain Reaction</h1>
+    <div class="bar"></div>
+    <p class="sub">Fill cells until they blow. Wipe out your rival's orbs to win.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p>Take turns tapping a cell to add one orb. You can play in an empty cell or in a cell that already holds your color.</p>
+      <p>A cell explodes when its orb count equals its neighbors: <b>2 in corners, 3 on edges, 4 in the middle</b>. It sends one orb to each neighbor and turns them to your color. That can set off chain reactions.</p>
+      <p>Wipe out every orb of your rival to win.</p>
+      <p><span class="dot" style="background:var(--p1)"></span><b>Cyan</b> goes first, then <span class="dot" style="background:var(--p2)"></span><b>Orange</b>. Playing on one screen? Pass the device back and forth.</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const COLS = 6, ROWS = 9, S = 60, W = COLS * S, H = ROWS * S; // grid size, cell pixels
+const COLORS = ["#19f0ff", "#ff8a1f"];
+const NAMES = ["Cyan", "Orange"];
+const NEIGHBORS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = W * 2; cv.height = H * 2;   // 2x backing store for sharpness
+ctx.scale(2, 2);
+
+let cells, turn, moves, busy, state = "menu", flying = [], queue = [];
+const score = [0, 0];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// critical mass = number of neighbors
+const crit = (r, c) => 4 - (r === 0) - (r === ROWS - 1) - (c === 0) - (c === COLS - 1);
+
+function reset() {
+  cells = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => ({ n: 0, p: -1 })));
+  turn = 0; moves = [0, 0]; busy = false; flying = []; queue = [];
+  updateHud();
+}
+
+function orbs() {
+  const t = [0, 0];
+  cells.forEach(row => row.forEach(c => { if (c.p >= 0) t[c.p] += c.n; }));
+  return t;
+}
+
+function hasWinner() {
+  const t = orbs();
+  return moves[0] > 0 && moves[1] > 0 && (t[0] === 0 || t[1] === 0);
+}
+
+function updateHud() {
+  const t = orbs();
+  $("n0").textContent = t[0];
+  $("n1").textContent = t[1];
+  $("h0").classList.toggle("on", turn === 0);
+  $("h1").classList.toggle("on", turn === 1);
+  const tt = $("turnTxt");
+  tt.textContent = NAMES[turn] + "'s turn" + (FG.human() >= 0 && FG.mine(turn) ? " (you)" : "");
+  tt.style.color = COLORS[turn];
+}
+
+async function play(r, c) {
+  busy = true;
+  const p = turn;
+  cells[r][c].n++; cells[r][c].p = p; moves[p]++;
+  updateHud();
+
+  for (let guard = 0; guard < 500; guard++) {
+    if (hasWinner()) break;
+    const boom = [];
+    for (let i = 0; i < ROWS; i++)
+      for (let j = 0; j < COLS; j++)
+        if (cells[i][j].n >= crit(i, j)) boom.push([i, j]);
+    if (!boom.length) break;
+
+    // one wave: every unstable cell sends an orb to each neighbor
+    const land = [], now = performance.now();
+    for (const [i, j] of boom) {
+      const cell = cells[i][j];
+      cell.n -= crit(i, j);
+      if (!cell.n) cell.p = -1;
+      for (const [dr, dc] of NEIGHBORS) {
+        const ni = i + dr, nj = j + dc;
+        if (ni < 0 || nj < 0 || ni >= ROWS || nj >= COLS) continue;
+        flying.push({ x0: j * S + S / 2, y0: i * S + S / 2, x1: nj * S + S / 2, y1: ni * S + S / 2, t0: now, p });
+        land.push([ni, nj]);
+      }
+    }
+    await sleep(280);
+    flying = [];
+    for (const [i, j] of land) { cells[i][j].n++; cells[i][j].p = p; }
+    updateHud();
+  }
+
+  if (hasWinner()) {
+    state = "over";
+    const w = orbs()[0] === 0 ? 1 : 0;
+    score[w]++;
+    await sleep(900);
+    $("result").textContent = NAMES[w] + " wins";
+    $("result").style.color = COLORS[w];
+    $("tally").textContent = "Cyan " + score[0] + "  |  Orange " + score[1];
+    show("end");
+    return;
+  }
+  turn = 1 - turn;
+  busy = false;
+  updateHud();
+  afterMove();
+}
+
+// What happens once a move has finished playing out
+function afterMove() {
+  if (state !== "play") return;
+  if (queue.length) { const m = queue.shift(); play(m[0], m[1]); return; }   // a friend's move that arrived while we were animating
+  if (FG.mode === "cpu" && turn === 1) setTimeout(aiMove, 650);
+}
+
+// Online: both screens play the same moves in the same order, so only the tapped cell is sent
+function onNet(m) {
+  if (m.t !== "mv" || state !== "play") return;
+  queue.push([m.r, m.c]);
+  if (!busy) afterMove();
+}
+
+/* ---------- computer opponent ---------- */
+// Plays a move on flat copies of the board: n = orbs per cell, o = owner per cell (-1 none)
+function simMove(n0, o0, i0, p, armed) {
+  const n = n0.slice(), o = o0.slice();
+  n[i0]++; o[i0] = p;
+  for (let guard = 0; guard < 200; guard++) {
+    let a = 0, b = 0;
+    for (let i = 0; i < n.length; i++) { if (o[i] === 0) a += n[i]; else if (o[i] === 1) b += n[i]; }
+    if (armed && (a === 0 || b === 0)) break;
+    const boom = [];
+    for (let i = 0; i < n.length; i++) if (n[i] >= crit((i / COLS) | 0, i % COLS)) boom.push(i);
+    if (!boom.length) break;
+    const add = [];
+    for (const i of boom) {
+      const r = (i / COLS) | 0, c = i % COLS;
+      n[i] -= crit(r, c);
+      if (!n[i]) o[i] = -1;
+      for (const [dr, dc] of NEIGHBORS) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nc >= 0 && nr < ROWS && nc < COLS) add.push(nr * COLS + nc);
+      }
+    }
+    for (const j of add) { n[j]++; o[j] = p; }
+  }
+  return { n, o };
+}
+
+function evalBoard(n, o, me, armed) {
+  let mine = 0, theirs = 0, risk = 0;
+  for (let i = 0; i < n.length; i++) { if (o[i] === me) mine += n[i]; else if (o[i] >= 0) theirs += n[i]; }
+  if (armed && theirs === 0 && mine > 0) return 1e5;
+  if (armed && mine === 0 && theirs > 0) return -1e5;
+  for (let i = 0; i < n.length; i++) {
+    if (o[i] !== me) continue;
+    const r = (i / COLS) | 0, c = i % COLS;
+    if (n[i] !== crit(r, c) - 1) continue;
+    for (const [dr, dc] of NEIGHBORS) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nc < 0 || nr >= ROWS || nc >= COLS) continue;
+      const j = nr * COLS + nc;
+      if (o[j] >= 0 && o[j] !== me && n[j] === crit(nr, nc) - 1) risk += n[i];   // they can blow up next to me
+    }
+  }
+  return mine - theirs - risk * 1.5;
+}
+
+function aiMove() {
+  if (state !== "play" || busy || turn !== 1) return;
+  const me = 1, flat = cells.flat();
+  const n = Int8Array.from(flat.map(c => c.n)), o = Int8Array.from(flat.map(c => c.p));
+  const armedAfter = p => (moves[0] + (p === 0 ? 1 : 0)) > 0 && (moves[1] + (p === 1 ? 1 : 0)) > 0;
+  const options = (own, who) => { const l = []; for (let i = 0; i < n.length; i++) if (own[i] === -1 || own[i] === who) l.push(i); return l; };
+  const mine = options(o, me);
+  let pick = mine[Math.floor(Math.random() * mine.length)];
+  if (FG.level === "easy" && Math.random() < 0.5) { /* random move */ }
+  else {
+    let best = -Infinity;
+    for (const i of mine) {
+      const a = simMove(n, o, i, me, armedAfter(me));
+      let s = evalBoard(a.n, a.o, me, true);
+      if (FG.level === "hard" && s > -1e5 && s < 1e5) {                  // look one reply ahead
+        let worst = Infinity;
+        for (const j of options(a.o, 1 - me)) {
+          const b = simMove(a.n, a.o, j, 1 - me, true);
+          worst = Math.min(worst, evalBoard(b.n, b.o, me, true));
+        }
+        s = worst;
+      }
+      s += Math.random() * (FG.level === "normal" ? 1.5 : 0.3);
+      if (s > best) { best = s; pick = i; }
+    }
+  }
+  play((pick / COLS) | 0, pick % COLS);
+}
+
+function orb(x, y, r, color) {
+  ctx.shadowColor = color; ctx.shadowBlur = 12;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
+}
+
+function draw(t) {
+  ctx.fillStyle = "#05070d";
+  ctx.fillRect(0, 0, W, H);
+
+  // grid lines glow in the current player's color
+  ctx.save();
+  ctx.strokeStyle = ctx.shadowColor = COLORS[turn];
+  ctx.shadowBlur = 8; ctx.lineWidth = 2; ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  for (let i = 0; i <= COLS; i++) { ctx.moveTo(i * S, 0); ctx.lineTo(i * S, H); }
+  for (let i = 0; i <= ROWS; i++) { ctx.moveTo(0, i * S); ctx.lineTo(W, i * S); }
+  ctx.stroke();
+  ctx.restore();
+
+  // orbs spin in their cells; cells one orb from exploding spin faster and shake
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = cells[r][c];
+      if (!cell.n) continue;
+      const unstable = cell.n === crit(r, c) - 1;
+      const rot = t * (unstable ? 0.008 : 0.0018) + r + c;
+      const cx = c * S + S / 2 + (unstable ? Math.sin(t * 0.05 + r) * 1.5 : 0);
+      const cy = r * S + S / 2 + (unstable ? Math.cos(t * 0.05 + c) * 1.5 : 0);
+      const n = cell.n, rad = n === 1 ? 0 : n === 2 ? 11 : 13;
+      for (let k = 0; k < n; k++) {
+        const a = rot + k * Math.PI * 2 / n;
+        orb(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, n > 3 ? 8 : 10, COLORS[cell.p]);
+      }
+    }
+  }
+
+  // orbs flying to neighbors
+  flying.forEach(f => {
+    const u = Math.min((t - f.t0) / 260, 1), e = u * (2 - u);
+    orb(f.x0 + (f.x1 - f.x0) * e, f.y0 + (f.y1 - f.y0) * e, 10, COLORS[f.p]);
+  });
+}
+
+function loop(t) { draw(t); requestAnimationFrame(loop); }
+
+// Tap or click a cell
+cv.addEventListener("pointerdown", e => {
+  if (state !== "play" || busy || !FG.mine(turn)) return;
+  const rect = cv.getBoundingClientRect();
+  const c = Math.floor((e.clientX - rect.left) * W / rect.width / S);
+  const r = Math.floor((e.clientY - rect.top) * H / rect.height / S);
+  if (r < 0 || c < 0 || r >= ROWS || c >= COLS) return;
+  const cell = cells[r][c];
+  if (cell.p === -1 || cell.p === turn) { if (FG.online) FG.send({ t: "mv", r, c }); play(r, c); }
+});
+
+function show(id) { FG.show(id); }
+
+function start() {
+  reset();
+  state = "play";
+  $("overlay").classList.add("hidden");
+}
+
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+// Fit the board to the screen, keeping its shape
+function fit() {
+  const s = $("stage");
+  const w = Math.max(Math.min(s.clientWidth - 16, (s.clientHeight - 16) * COLS / ROWS), 100);
+  cv.style.width = w + "px";
+  cv.style.height = (w * ROWS / COLS) + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+reset();
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

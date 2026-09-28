@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cake Stack Duel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/fg.css">
+<style>
+:root {
+  --bg: #d95f8a;
+  --ink: #4a2c2a;
+  --muted: #8a5f58;
+  --berry: #ff5c8a;
+  --mint: #2fc7a8;
+  --berry-btn: #d63b6d;
+  --mint-btn: #1a927b;
+  --sun: #ffd86b;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); touch-action: none; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Fredoka", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Top bar */
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px 4px;
+}
+.chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 14px;
+  border: 3px solid;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 700;
+}
+.chip.k0 { border-color: var(--berry); }
+.chip.k1 { border-color: var(--mint); }
+.chip b { font-size: 1.2rem; min-width: 1.4ch; text-align: right; }
+#goal { color: #fff; font-weight: 700; font-size: 1.1rem; }
+
+#stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+canvas { display: block; border-radius: 18px; box-shadow: 0 6px 0 rgba(0, 0, 0, 0.22); }
+
+/* Solo and online: just your own big drop button */
+body.fg-solo .drop { display: none; }
+body.fg-solo.fg-me-0 .drop.k0, body.fg-solo.fg-me-1 .drop.k1 { display: flex; }
+
+/* Drop buttons */
+#fire { display: flex; gap: 12px; padding: 8px 12px 14px; }
+.drop {
+  flex: 1; height: 76px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font: 700 1.35rem "Fredoka", system-ui, sans-serif;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 22px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.drop.k0 { background: var(--berry-btn); }
+.drop.k1 { background: var(--mint-btn); }
+.drop:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3); }
+.drop .em { font-size: 1.7rem; }
+.drop .key { font-size: 0.85rem; opacity: 0.95; border: 2px solid #fff; border-radius: 8px; padding: 0 7px; }
+@media (pointer: coarse) { .drop .key { display: none; } }
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+/* Screens */
+#overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 240, 225, 0.94);
+  z-index: 10;
+}
+.panel { text-align: center; max-width: 380px; padding: 24px; }
+.hidden { display: none !important; }
+.hero { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+h1, h2 { margin: 0; font-weight: 700; }
+h1 { font-size: clamp(2.2rem, 9.5vw, 3.2rem); }
+h2 { font-size: clamp(1.9rem, 8vw, 2.7rem); }
+.bar { width: 120px; height: 5px; border-radius: 3px; margin: 14px auto 16px; background: linear-gradient(90deg, var(--berry) 50%, var(--mint) 50%); }
+.sub { color: var(--muted); margin: 0 0 26px; line-height: 1.4; font-size: 1.1rem; }
+button.big {
+  display: block; width: 100%; margin: 0 0 14px;
+  padding: 13px 20px;
+  font: 700 1.2rem "Fredoka", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--sun);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+}
+button.big:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+button.big.ghost { background: #fff; }
+button.big:focus-visible { outline-color: var(--ink); }
+
+.how { text-align: left; margin: 0 0 22px; line-height: 1.45; color: var(--muted); }
+.how p { margin: 0 0 12px; }
+.how b { color: var(--ink); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+#why { color: var(--muted); margin: 12px 0 0; font-size: 1.05rem; }
+#tally { color: var(--muted); margin: 6px 0 26px; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="chip k0">Berry <b id="n0">0</b>/15</div>
+  <div id="goal">First to 15</div>
+  <div class="chip k1">Mint <b id="n1">0</b>/15</div>
+</div>
+
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="fire">
+  <button class="drop k0" data-p="0"><span class="em">🍰</span>Berry <span class="key">A</span></button>
+  <button class="drop k1" data-p="1"><span class="em">🍰</span>Mint <span class="key">L</span></button>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="menu">
+    <div class="hero">🍰🍒🎂</div>
+    <h1>Cake Stack Duel</h1>
+    <div class="bar"></div>
+    <p class="sub">Two bakers, two wobbly towers. Stack fast, stack neat, and do not topple.</p>
+    <button class="big" id="startBtn">Start</button>
+    <button class="big ghost" id="howBtn">Instructions</button>
+  </div>
+
+  <div class="panel hidden" id="how">
+    <h1>How to play</h1>
+    <div class="bar"></div>
+    <div class="how">
+      <p>Each baker has a tray that <b>swings side to side</b>. Tap to drop the cake layer onto your tower.</p>
+      <p>Anything hanging over the edge gets <b>sliced off</b>, so your layers shrink. Land one almost perfectly and it <b>grows back</b> a little.</p>
+      <p>Every 4th layer carries a <b>cherry</b>. Drop that layer perfectly to score 2 bonus layers. Miss, and the cherry rolls away.</p>
+      <p>If a layer misses your tower completely, it <b>topples</b> and you lose. The first baker to stack 15 layers wins. The tray gets faster as you climb.</p>
+      <p><span class="dot" style="background:var(--berry)"></span><b>Berry (left):</b> A key, the pink button, or tap the left side</p>
+      <p><span class="dot" style="background:var(--mint)"></span><b>Mint (right):</b> L key, the green button, or tap the right side</p>
+    </div>
+    <button class="big" id="backBtn">Back</button>
+  </div>
+
+  <div class="panel hidden" id="end">
+    <div class="hero" id="endEmoji">🏆</div>
+    <h2 id="result"></h2>
+    <div class="bar"></div>
+    <p id="why"></p>
+    <p id="tally"></p>
+    <button class="big" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="../shared/config.js"></script>
+<script src="../shared/fg.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const W = 600, H = 720, PW = 300;              // canvas size, width of each baker's side
+const BASE = 640, LH = 24, BW = 120;           // table height, layer height, starting layer width
+const GOAL = 15, PERFECT = 6, GAP = 95, GRAV = 3600;
+const NAMES = ["Berry", "Mint"];
+const ACCENT = ["#ff5c8a", "#2fc7a8"];
+const PAL = [
+  { b: "#f6d38a", f: "#fff5e0" },   // sponge
+  { b: "#8a5a3c", f: "#5b3a26" },   // chocolate
+  { b: "#ff8fb1", f: "#ffd6e4" },   // strawberry
+  { b: "#7fe3c4", f: "#e3fff5" },   // mint
+  { b: "#8c9dff", f: "#e0e6ff" }    // blueberry
+];
+const CONFETTI = ["#ff5c8a", "#2fc7a8", "#ffd86b", "#8c9dff", "#fff"];
+
+const cv = $("cv"), ctx = cv.getContext("2d");
+cv.width = W * 2; cv.height = H * 2;
+
+let players, parts = [], pops = [];
+let state = "menu", cnt = 3, goT = 0, age = 0, over = null;
+const wins = [0, 0];
+
+const topY = k => BASE - (k + 1) * LH;         // top edge of layer number k (0 is the base layer)
+
+/* ---------- setup ---------- */
+function ampFor(p) {
+  const top = p.layers[p.layers.length - 1];
+  return Math.max(PW / 2 - top.w / 2 - 8, Math.abs(top.cx - p.px) + 10);
+}
+
+function mkPlayer(i) {
+  const px = i ? 450 : 150;
+  const p = {
+    id: i, px, layers: [{ cx: px, w: BW, c: 0, oy: 0, vy: 0 }], n: 0,
+    s: 0, dir: 1, cx: px, lock: 0, cherry: false, done: false,
+    wob: 0, wobT: 0, topple: null, pieces: [], won: false
+  };
+  p.s = -ampFor(p);
+  return p;
+}
+
+function setup() {
+  players = [mkPlayer(0), mkPlayer(1)];
+  parts = []; pops = []; over = null; age = 0;
+}
+
+function startGame() {
+  setup();
+  cnt = 3; state = "count";
+  const iv = setInterval(() => {
+    cnt--;
+    if (cnt <= 0) { clearInterval(iv); state = "play"; goT = performance.now(); }
+  }, 700);
+}
+
+/* ---------- dropping ---------- */
+function pop(x, y, text, color) { pops.push({ x, y, text, color, t0: performance.now() }); }
+
+function burst(x, y, colors, n, speed) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * speed;
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40, life: 0.5 + Math.random() * 0.5, size: 2.5 + Math.random() * 3, color: colors[i % colors.length] });
+  }
+}
+
+function drop(i, at) {
+  const p = players[i];
+  if (state !== "play" || p.done || p.lock > 0) return;
+  if (FG.online && at === undefined) {   // my own drop: tell my friend exactly where the tray was
+    at = Math.round(p.cx * 10) / 10;
+    FG.send({ t: "d", cx: at });
+  }
+  const top = p.layers[p.layers.length - 1];
+  const w = top.w, cx = at !== undefined ? at : p.cx, d = cx - top.cx, ad = Math.abs(d);
+  const k = p.n + 1, land = topY(k), swingY = land - GAP;
+  const c = k % 5;
+
+  // no overlap at all: the tower topples
+  if (ad >= w) {
+    p.done = true;
+    p.topple = { t0: performance.now(), dir: d >= 0 ? 1 : -1 };
+    p.pieces.push({ cx, y: swingY, w, c, vy: 0, vx: (d >= 0 ? 1 : -1) * 50, rot: 0, vr: (d >= 0 ? 1 : -1) * 2.5, kind: "cake" });
+    pop(p.px, 300, "Topple!", "#c0392b");
+    endGame(1 - i, "toppled");
+    return;
+  }
+
+  const perfect = ad <= PERFECT;
+  let nw, ncx, piece = null;
+  if (perfect) {
+    nw = Math.min(BW, w + 8); ncx = top.cx; p.wob = 0;
+  } else {
+    const left = Math.max(cx - w / 2, top.cx - w / 2), right = Math.min(cx + w / 2, top.cx + w / 2);
+    nw = right - left; ncx = (left + right) / 2; p.wob = ad;
+    const pl = d > 0 ? top.cx + w / 2 : cx - w / 2, pr = d > 0 ? cx + w / 2 : top.cx - w / 2;
+    piece = { cx: (pl + pr) / 2, y: land, w: pr - pl, c, vy: 0, vx: (d > 0 ? 1 : -1) * 60, rot: 0, vr: (d > 0 ? 1 : -1) * 3, kind: "cake" };
+  }
+  p.wobT = performance.now();
+
+  const layer = { cx: ncx, w: nw, c, oy: -GAP, vy: 0, piece };
+  if (p.cherry && !perfect) layer.cherryPiece = { cx: ncx, y: land - 8, w: 0, vy: -120, vx: (d >= 0 ? 1 : -1) * 90, rot: 0, vr: 6, kind: "cherry" };
+  p.layers.push(layer);
+
+  if (perfect) {
+    pop(ncx, land - 20, "Perfect!", ACCENT[i]);
+    burst(ncx, land, ["#fff", ACCENT[i], "#ffd86b"], 10, 120);
+  }
+  if (p.cherry && perfect) {
+    for (let j = 1; j <= 2; j++) p.layers.push({ cx: ncx, w: nw, c: (k + j) % 5, oy: -GAP - j * 40, vy: 0 });
+    pop(ncx, land - 50, "Cherry! +2", "#e63946");
+    burst(ncx, land - 10, ["#e63946", "#ff8fa3", "#fff"], 18, 160);
+  }
+
+  p.n = p.layers.length - 1;
+  p.cherry = (p.n + 1) % 4 === 0 && p.n + 1 < GOAL;
+  p.lock = 0.12;
+  if (p.n >= GOAL) { p.won = true; p.done = true; endGame(i, "top"); }
+}
+
+function endGame(winner, how, fromHost) {
+  if (state === "over") return;                // only the first finisher counts
+  if (FG.isGuest && !fromHost) return;         // the host decides who won
+  if (FG.isHost) FG.send({ t: "end", w: winner, h: how });
+  if (fromHost) players.forEach((q, k) => { q.won = how === "top" && k === winner; });
+  state = "over";
+  wins[winner]++;
+  over = { winner, how, t0: performance.now() };
+  if (how === "top") {
+    const p = players[winner];
+    burst(p.px, 200, CONFETTI, 70, 260);
+  }
+  setTimeout(() => {
+    $("endEmoji").textContent = "🏆";
+    $("result").textContent = NAMES[winner] + " wins!";
+    $("why").textContent = how === "top" ? NAMES[winner] + " stacked all 15 layers." : NAMES[1 - winner] + "'s tower toppled.";
+    $("tally").textContent = "Berry " + wins[0] + "  |  Mint " + wins[1] + " wins";
+    show("end");
+  }, how === "top" ? 1900 : 1600);
+}
+
+/* ---------- input ---------- */
+addEventListener("keydown", e => {
+  if (e.repeat) return;
+  const h = FG.human();
+  if (h >= 0) {   // solo or online: A, L, Space or Enter all drop your cake
+    if (["KeyA", "KeyL", "Space", "Enter"].includes(e.code) && state === "play") { e.preventDefault(); drop(h); }
+  } else {
+    if (e.code === "KeyA") drop(0);
+    if (e.code === "KeyL") drop(1);
+  }
+});
+document.querySelectorAll(".drop").forEach(b => {
+  b.addEventListener("pointerdown", e => { e.preventDefault(); drop(+b.dataset.p); });
+});
+cv.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  drop(FG.human() >= 0 ? FG.human() : e.clientX < r.left + r.width / 2 ? 0 : 1);
+});
+
+/* ---------- computer baker ---------- */
+// Mint waits until the swinging tray is lined up with the tower, then drops. Easier levels line up less well.
+function aiDrop(p, dt) {
+  if (state !== "play" || p.done || p.lock > 0) return;
+  if (p.aiWait === undefined) { p.aiWait = 1.0; p.aiTol = 10; }
+  p.aiWait -= dt;
+  if (p.aiWait > 0) return;
+  const top = p.layers[p.layers.length - 1];
+  if (Math.abs(p.cx - top.cx) <= p.aiTol) {
+    drop(p.id);
+    p.aiWait = FG.pick(1.5, 1.0, 0.6) + Math.random() * 0.4;
+    p.aiTol = FG.pick(4 + Math.random() * 16, 4 + Math.random() * 9, 2 + Math.random() * 3);
+  }
+}
+
+// Online: both screens run both swinging trays; a drop is sent with the tray position, the host announces the winner
+function onNet(m) {
+  if (m.t === "d") drop(1 - FG.role, m.cx);
+  else if (m.t === "end" && FG.isGuest) endGame(m.w, m.h, true);
+}
+
+/* ---------- update ---------- */
+function update(dt) {
+  age += dt;
+  for (const p of players) {
+    if (p.lock > 0) p.lock -= dt;
+    if (FG.ai(p.id)) aiDrop(p, dt);
+
+    // falling layers
+    for (const l of p.layers) {
+      if (l.oy >= 0) continue;
+      l.vy += GRAV * dt; l.oy += l.vy * dt;
+      if (l.oy >= 0) {
+        l.oy = 0; l.vy = 0;
+        burst(l.cx, topY(p.layers.indexOf(l)), [PAL[l.c].f, PAL[l.c].b], 4, 60);
+        if (l.piece) { p.pieces.push(l.piece); l.piece = null; }
+        if (l.cherryPiece) { p.pieces.push(l.cherryPiece); l.cherryPiece = null; }
+      }
+    }
+
+    // sliced pieces tumble away
+    for (const q of p.pieces) { q.vy += 1800 * dt; q.x = 0; q.cx += q.vx * dt; q.y += q.vy * dt; q.rot += q.vr * dt; }
+    p.pieces = p.pieces.filter(q => q.y < H + 120);
+
+    // swinging tray
+    if (!p.done && state !== "over") {
+      const A = ampFor(p), v = Math.min(140 + p.n * 16, 380);
+      p.s += p.dir * v * dt;
+      if (p.s > A) { p.s = 2 * A - p.s; p.dir = -1; }
+      if (p.s < -A) { p.s = -2 * A - p.s; p.dir = 1; }
+      p.cx = p.px + p.s;
+    }
+  }
+}
+
+/* ---------- drawing ---------- */
+function rr(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function ell(x, y, rx, ry, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function cake(cx, y, w, c) {
+  const P = PAL[c % 5], x = cx - w / 2;
+  ctx.fillStyle = P.b; rr(x, y, w, LH, 6); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.fillRect(x + 4, y + LH - 9, Math.max(w - 8, 0), 2);
+  ctx.fillStyle = P.f; rr(x, y, w, 10, 5); ctx.fill();
+  if (w > 24) for (let dx = 9; dx < w - 5; dx += 16) { ctx.beginPath(); ctx.arc(x + dx, y + 10, 3.5, 0, Math.PI * 2); ctx.fill(); }
+}
+
+function cherry(x, y, s) {
+  ctx.strokeStyle = "#4a8a3a"; ctx.lineWidth = 2.5 * s; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x, y - 6 * s); ctx.quadraticCurveTo(x + 2 * s, y - 14 * s, x + 8 * s, y - 15 * s); ctx.stroke();
+  ell(x, y, 8 * s, 8 * s, "#e63946");
+  ell(x - 3 * s, y - 3 * s, 2.4 * s, 2.4 * s, "rgba(255,255,255,0.65)");
+}
+
+function banner(text, y, size) {
+  ctx.font = "700 " + size + "px Fredoka, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+  ctx.lineWidth = size / 7; ctx.strokeStyle = "#fff"; ctx.strokeText(text, W / 2, y);
+  ctx.fillStyle = "#4a2c2a"; ctx.fillText(text, W / 2, y);
+}
+
+function drawPlayer(p, t) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(p.px - PW / 2, 0, PW, H); ctx.clip();
+
+  // cake stand
+  ell(p.px, BASE + 8, 108, 14, "rgba(70,40,30,0.18)");
+  ctx.fillStyle = "#e8d7c8"; ctx.fillRect(p.px - 14, BASE + 8, 28, 30);
+  ell(p.px, BASE + 3, 104, 12, "#fff");
+  ell(p.px, BASE - 1, 104, 10, "#f4ecff");
+
+  // goal line
+  ctx.setLineDash([8, 8]); ctx.strokeStyle = ACCENT[p.id]; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(p.px - PW / 2 + 12, topY(GOAL)); ctx.lineTo(p.px + PW / 2 - 12, topY(GOAL)); ctx.stroke();
+  ctx.setLineDash([]);
+  cherry(p.px + PW / 2 - 26, topY(GOAL) - 12, 0.9);
+
+  // drop guides and tray
+  const top = p.layers[p.layers.length - 1], swingY = topY(p.n + 1) - GAP;
+  if (!p.done && state !== "over") {
+    ctx.setLineDash([3, 8]); ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 2;
+    [-1, 1].forEach(s => {
+      const gx = top.cx + s * top.w / 2;
+      ctx.beginPath(); ctx.moveTo(gx, swingY + LH); ctx.lineTo(gx, topY(p.n) + p.layers[p.n].oy); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  // tower (wobbles when a drop is sloppy, falls over on a topple)
+  ctx.save();
+  let angle = 0, alpha = 1, pivotX = p.px, pivotY = BASE;
+  if (p.topple) {
+    const dt = (performance.now() - p.topple.t0) / 1000;
+    angle = p.topple.dir * Math.min(1.6, dt * dt * 3.2);
+    pivotX = p.px + p.topple.dir * BW / 2;
+    alpha = Math.max(0, Math.min(1, 1 - (dt - 0.9) / 0.6));
+  } else {
+    const dt = (performance.now() - p.wobT) / 1000;
+    angle = Math.sin(dt * 16) * Math.exp(-dt * 2.5) * p.wob * 0.0018;
+  }
+  ctx.translate(pivotX, pivotY); ctx.rotate(angle); ctx.translate(-pivotX, -pivotY);
+  ctx.globalAlpha = alpha;
+  p.layers.forEach((l, k) => cake(l.cx, topY(k) + l.oy, l.w, l.c));
+  ctx.restore();
+
+  // slices tumbling off
+  p.pieces.forEach(q => {
+    ctx.save(); ctx.translate(q.cx, q.y + LH / 2); ctx.rotate(q.rot);
+    if (q.kind === "cherry") cherry(0, 0, 1); else cake(0, -LH / 2, q.w, q.c);
+    ctx.restore();
+  });
+
+  // swinging tray with the next layer
+  if (!p.done && state !== "over") {
+    const cx = p.cx, k = p.n + 1;
+    ctx.strokeStyle = "rgba(120,80,60,0.45)"; ctx.lineWidth = 4; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(p.px - PW / 2 + 10, swingY - 32); ctx.lineTo(p.px + PW / 2 - 10, swingY - 32); ctx.stroke();
+    ctx.strokeStyle = "rgba(120,80,60,0.6)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 10, swingY - 24); ctx.lineTo(cx - top.w / 2 + 5, swingY + 2);
+    ctx.moveTo(cx + 10, swingY - 24); ctx.lineTo(cx + top.w / 2 - 5, swingY + 2); ctx.stroke();
+    ctx.fillStyle = "#b07a55"; rr(cx - 14, swingY - 38, 28, 14, 5); ctx.fill();
+    cake(cx, swingY, top.w, k % 5);
+    if (p.cherry) cherry(cx, swingY - 8, 1);
+  }
+
+  // winner gets the cherry on top
+  if (p.won) cherry(top.cx, topY(p.n) - 8 - Math.abs(Math.sin(t / 200)) * 6, 1.2);
+  ctx.restore();
+}
+
+function draw(t) {
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  ctx.textBaseline = "alphabetic";
+
+  // bakery wall with polka dots, and a wooden counter
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#ffe8ef"); g.addColorStop(1, "#ffd0e0");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  for (let y = 24; y < BASE; y += 48) for (let x = (y / 48 % 2) * 24 + 12; x < W; x += 48) { ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = "#c98a5b"; ctx.fillRect(0, BASE + 30, W, H - BASE - 30);
+  ctx.fillStyle = "#b5774a"; ctx.fillRect(0, BASE + 30, W, 5);
+  ctx.setLineDash([8, 10]); ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(PW, 0); ctx.lineTo(PW, BASE + 30); ctx.stroke(); ctx.setLineDash([]);
+
+  players.forEach(p => drawPlayer(p, t));
+
+  parts.forEach(q => { ctx.globalAlpha = Math.min(q.life * 2.5, 1); ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, Math.PI * 2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+
+  const now = performance.now();
+  pops = pops.filter(p => now - p.t0 < 1000);
+  pops.forEach(p => {
+    const a = Math.max(0, (now - p.t0) / 1000);
+    ctx.globalAlpha = 1 - a * a;
+    ctx.font = "700 26px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 6; ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.strokeText(p.text, p.x, p.y - a * 30);
+    ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y - a * 30);
+  });
+  ctx.globalAlpha = 1;
+
+  if (state === "count") { banner(String(cnt), 300, 120); const you = FG.you(NAMES); if (you) banner(you, 395, 34); }
+  else if (state === "play" && now - goT < 600) banner("Go!", 300, 120);
+}
+
+/* ---------- main loop ---------- */
+let last = 0;
+function loop(t) {
+  const dt = Math.min((t - last) / 1000, 0.05); last = t;
+  update(dt);
+  for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 500 * dt; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0);
+  $("n0").textContent = players[0].n; $("n1").textContent = players[1].n;
+  draw(t);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- screens ---------- */
+function show(id) { FG.show(id); }
+function start() { $("overlay").classList.add("hidden"); startGame(); }
+$("startBtn").onclick = () => FG.start();
+$("againBtn").onclick = () => FG.again();
+$("howBtn").onclick = () => show("how");
+$("backBtn").onclick = () => FG.back();
+
+function fit() {
+  const s = $("stage");
+  const w = Math.max(Math.min(s.clientWidth - 16, (s.clientHeight - 8) * W / H), 120);
+  cv.style.width = w + "px"; cv.style.height = (w * H / W) + "px";
+}
+addEventListener("resize", fit);
+fit();
+
+setup();
+FG.setup({ start, stop() { state = "menu"; }, onMessage: onNet });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
