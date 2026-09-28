@@ -46,6 +46,11 @@ export default async function () {
     p.key("keydown", "ArrowRight", "ArrowRight");
     await run([p], net, 0.5, () => 0);
     check(p.get("bikes[0].d") === 1, "local: Right arrow sends cyan east");
+    // two quick presses inside one game tick both count: Up then Left from heading east -> north, then west
+    p.key("keydown", "ArrowUp", "ArrowUp");
+    p.key("keydown", "ArrowLeft", "ArrowLeft");
+    await run([p], net, 0.6, () => 0);
+    check(p.get("bikes[0].d") === 3, "local: Up then Left pressed together gives north then west");
     noErrors(p);
   }
 

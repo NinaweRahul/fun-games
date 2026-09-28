@@ -53,7 +53,7 @@ Use `https` for anything you share. Browsers only allow clipboard copy and the s
 
 | Game | Keyboard | Touch |
 | --- | --- | --- |
-| Light Cycle Duel | P1 arrow keys, P2 `A` `D` | Joystick |
+| Light Cycle Duel | P1 arrow keys, P2 `WASD` (up is north, left is west, and so on) | Joystick |
 | Chain Reaction | Click or tap a cell | Tap |
 | Monkey Fruit Fight | Drag back from anywhere and release | Drag |
 | Sumo Bump | P1 `WASD` + `Space`, P2 arrows + `Enter` | Joystick + Dash |
