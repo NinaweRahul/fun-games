@@ -147,6 +147,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     <h1>Light Cycle Duel</h1>
     <div class="bar"></div>
     <p class="sub">Two bikes, one arena. Last rider standing wins.</p>
+    <p class="sub" style="margin-top:-14px">Steer north, east, south and west with the arrow keys or W A S D, or use the joystick.</p>
     <button class="big" id="startBtn">Start</button>
     <button class="big ghost" id="howBtn">Instructions</button>
   </div>
@@ -155,9 +156,9 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     <h1>How to play</h1>
     <div class="bar"></div>
     <div class="how">
-      <p>Your bike never stops and can't reverse. Steer it around the arena. Hitting a wall or any light trail blows you up, and the other player wins. The bikes get faster over time.</p>
-      <p><span class="dot" style="background:var(--p1)"></span><b>Player 1, cyan:</b> Left and Right arrow keys</p>
-      <p><span class="dot" style="background:var(--p2)"></span><b>Player 2, orange:</b> A and D keys</p>
+      <p>Your bike never stops and can't reverse. Point it north, south, east or west to steer it around the arena. Hitting a wall or any light trail blows you up, and the other player wins. The bikes get faster over time.</p>
+      <p><span class="dot" style="background:var(--p1)"></span><b>Player 1, cyan:</b> arrow keys. Up is north, down is south, left is west, right is east.</p>
+      <p><span class="dot" style="background:var(--p2)"></span><b>Player 2, orange:</b> W (north), A (west), S (south), D (east)</p>
       <p>On a phone, use the joysticks at the bottom: orange on the left, cyan on the right. Push a stick up, down, left or right to head that way. Pushing straight back the way you came does nothing.</p>
     </div>
     <button class="big" id="backBtn">Back</button>
@@ -180,7 +181,7 @@ const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // up, right, down, left (clock
 const COLORS = ["#19f0ff", "#ff8a1f"];
 const NAMES = ["Cyan", "Orange"];
 const cv = $("cv"), ctx = cv.getContext("2d");
-cv.width = cv.height = W;
+let S = 1;   // canvas pixels per drawing unit, so the arena stays sharp on any screen
 
 let grid, bikes, particles, state = "menu", interval, acc = 0, last = 0, count = 0;
 const score = [0, 0];
@@ -188,11 +189,12 @@ const score = [0, 0];
 function reset() {
   grid = new Uint8Array(N * N);
   bikes = [
-    { x: 8,  y: 25, d: 1, turn: 0, want: null, dead: false, path: [[8, 25]] },
-    { x: 41, y: 25, d: 3, turn: 0, want: null, dead: false, path: [[41, 25]] }
+    { x: 8,  y: 25, d: 1, turn: 0, want: null, q: [], dead: false, path: [[8, 25]] },
+    { x: 41, y: 25, d: 3, turn: 0, want: null, q: [], dead: false, path: [[41, 25]] }
   ];
   bikes.forEach((b, i) => grid[b.y * N + b.x] = i + 1);
   particles = [];
+  lastWant = null;
   interval = 130; // ms per step, shrinks over time
   acc = 0;
 }
@@ -202,8 +204,12 @@ function step() {
   // apply queued turns, then work out where each bike goes next
   const next = bikes.map(b => {
     let nd = b.d;
-    if (b.want !== null && (b.want + 2) % 4 !== b.d) nd = b.want; // joystick, no U-turns
-    else if (b.turn) nd = (b.d + (b.turn > 0 ? 1 : 3)) % 4;      // keyboard
+    while (b.q.length) {                                            // keyboard: next pressed direction that is not straight back
+      const d = b.q.shift();
+      if (d !== b.d && (d + 2) % 4 !== b.d) { nd = d; break; }
+    }
+    if (nd === b.d && b.want !== null && (b.want + 2) % 4 !== b.d) nd = b.want;   // joystick, no U-turns
+    else if (nd === b.d && b.turn) nd = (b.d + (b.turn > 0 ? 1 : 3)) % 4;         // computer opponent
     if (nd !== b.d) { b.d = nd; b.path.push([b.x, b.y]); }
     b.turn = 0;
     return [b.x + DIRS[b.d][0], b.y + DIRS[b.d][1]];
@@ -258,7 +264,7 @@ function aiSteer(i) {
 
 // Online: the host runs the game and sends every move; the guest only draws and sends steering
 function onNet(m) {
-  if (FG.isHost && m.t === "turn") bikes[1].turn = m.v;
+  if (FG.isHost && m.t === "dir") { bikes[1].want = null; if (bikes[1].q.length < 3) bikes[1].q.push(m.d); }
   else if (FG.isHost && m.t === "want") bikes[1].want = m.d;
   else if (FG.isGuest && m.t === "tk" && bikes) {
     if (state === "count") state = "play";
@@ -298,6 +304,7 @@ function explode(b, color) {
 }
 
 function draw() {
+  ctx.setTransform(S, 0, 0, S, 0, 0);
   ctx.fillStyle = "#05070d";
   ctx.fillRect(0, 0, W, W);
 
@@ -320,7 +327,7 @@ function draw() {
   bikes.forEach((b, i) => {
     ctx.save();
     ctx.strokeStyle = ctx.shadowColor = COLORS[i];
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 16 * S;
     ctx.lineWidth = C * 0.55;
     ctx.lineCap = "square";
     ctx.beginPath();
@@ -358,6 +365,9 @@ function draw() {
       ctx.fillStyle = COLORS[FG.human()];
       ctx.fillText(you, W / 2, W / 2 + 100);
     }
+    ctx.font = "500 18px 'Chakra Petch', sans-serif";
+    ctx.fillStyle = "#8a9cbd";
+    ctx.fillText(FG.human() >= 0 ? "Arrows or W A S D: north, east, south, west" : "Cyan: arrows     Orange: W A S D", W / 2, W / 2 + 140);
   }
 }
 
@@ -391,26 +401,29 @@ function start() {
   }, 700);
 }
 
-function turn(p, t) {
-  if (state !== "play") return;
-  if (FG.isGuest) FG.send({ t: "turn", v: t }); else bikes[p].turn = t;
-}
 let lastWant = null;
 function setWant(p, d) {
   if (FG.isGuest) { if (d !== lastWant) { lastWant = d; FG.send({ t: "want", d }); } }
   else bikes[p].want = d;
 }
 
-// Keyboard. Same screen: arrows steer cyan, A/D steer orange. Solo or online: either pair steers your bike.
+// Keyboard: press a compass direction (0 north, 1 east, 2 south, 3 west) and the bike heads that way.
+// Same screen: arrows steer cyan, W A S D steer orange. Solo or online: either set steers your bike.
+const ARROW_DIR = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 };
+const WASD_DIR = { KeyW: 0, KeyD: 1, KeyS: 2, KeyA: 3 };
+function pressDir(p, d) {
+  if (FG.isGuest) { FG.send({ t: "dir", d }); return; }
+  const b = bikes[p];
+  b.want = null;                       // the keyboard takes over from the joystick
+  if (b.q.length < 3) b.q.push(d);
+}
 addEventListener("keydown", e => {
-  const k = e.key.toLowerCase();
-  const left = k === "arrowleft" || k === "a", right = k === "arrowright" || k === "d";
-  if (!left && !right) return;
-  const t = left ? -1 : 1, h = FG.human();
-  if (h >= 0) turn(h, t);
-  else if (k.startsWith("arrow")) turn(0, t);
-  else turn(1, t);
-  if (k.startsWith("arrow")) e.preventDefault();
+  const arrow = e.code in ARROW_DIR, wasd = e.code in WASD_DIR;
+  if (!arrow && !wasd) return;
+  if (arrow) e.preventDefault();
+  if (state !== "play" || e.repeat) return;
+  const h = FG.human();
+  pressDir(h >= 0 ? h : arrow ? 0 : 1, arrow ? ARROW_DIR[e.code] : WASD_DIR[e.code]);
 });
 
 // On-screen joysticks: push toward north/east/south/west to head that way.
@@ -455,8 +468,11 @@ $("backBtn").onclick = () => FG.back();
 // Keep the square arena as large as the screen allows
 function fit() {
   const s = $("stage");
-  const size = Math.floor(Math.min(s.clientWidth, s.clientHeight)) - 16;
-  cv.style.width = cv.style.height = Math.max(size, 100) + "px";
+  const size = Math.max(Math.min(Math.floor(Math.min(s.clientWidth, s.clientHeight)) - 16, 520), 100);
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  cv.style.width = cv.style.height = size + "px";
+  cv.width = cv.height = Math.round(size * dpr);   // draw at the screen's real resolution
+  S = cv.width / W;
 }
 addEventListener("resize", fit);
 fit();
